@@ -48,6 +48,24 @@ async def create_category(name: str, description: Optional[str] = None) -> Dict[
         raise RuntimeError(f"Erreur Dolibarr lors de la création de catégorie: {str(e)}") from e
 
 
+async def _get_or_create_default_warehouse() -> int:
+    """Récupère l'ID du premier entrepôt Dolibarr ou en crée un par défaut si aucun n'existe."""
+    try:
+        whs = await dolibarr_client.get("warehouses")
+        if whs and isinstance(whs, list) and len(whs) > 0:
+            return int(whs[0].get("id", 1))
+        
+        res = await dolibarr_client.post("warehouses", {
+            "label": "Entrepôt Principal",
+            "statut": 1,
+            "description": "Entrepôt principal Smart ERP"
+        })
+        return int(res if isinstance(res, int) else (res.get("id") if isinstance(res, dict) else 1))
+    except Exception as e:
+        logger.warning(f"Impossible de vérifier/créer l'entrepôt Dolibarr: {e}")
+        return 1
+
+
 async def get_all_products(
     q: Optional[str] = None,
     category_id: Optional[int] = None,
@@ -63,22 +81,31 @@ async def get_all_products(
         mapped = []
         if doli_prods and isinstance(doli_prods, list):
             for p in doli_prods:
-                qty = int(float(p.get("stock_real", 0) or 0))
-                res = int(float(p.get("stock_reserved", 0) or 0))
+                pid = int(p.get("id"))
+                stock_qty = 0
+                stock_res = 0
+                
+                try:
+                    stk_info = await dolibarr_client.get(f"products/{pid}/stock")
+                    if stk_info and isinstance(stk_info, list) and len(stk_info) > 0:
+                        stock_qty = int(float(stk_info[0].get("stock_reel", 0) or 0))
+                except Exception:
+                    stock_qty = int(float(p.get("stock_real", 0) or 0))
+
                 mapped.append({
-                    "id_product": int(p.get("id")),
-                    "reference": p.get("ref", f"DOL-{p.get('id')}"),
+                    "id_product": pid,
+                    "reference": p.get("ref", f"DOL-{pid}"),
                     "label": p.get("label", "Produit Dolibarr"),
                     "description": p.get("description", ""),
                     "category_id": category_id,
                     "price_purchase": float(p.get("cost_price", 0.0) or 0.0),
                     "price_sell": float(p.get("price", 0.0) or 0.0),
                     "status": "ACTIF" if str(p.get("status_buy", "1")) == "1" else "INACTIF",
-                    "stock_quantity": qty,
-                    "stock_reserved": res,
+                    "stock_quantity": stock_qty,
+                    "stock_reserved": stock_res,
                     "stock_min": int(float(p.get("seuil_stock_alerte", 5) or 5)),
                     "stock_max": 100,
-                    "stock_available": max(0, qty - res),
+                    "stock_available": max(0, stock_qty - stock_res),
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 })
@@ -108,7 +135,7 @@ def _apply_filters(
         filtered = [p for p in filtered if p.get("status") == status.upper()]
     if stock_status:
         if stock_status == "low":
-            filtered = [p for p in filtered if p.get("stock_quantity", 0) <= p.get("stock_min", 5)]
+            filtered = [p for p in filtered if 0 < p.get("stock_quantity", 0) <= p.get("stock_min", 5)]
         elif stock_status == "out":
             filtered = [p for p in filtered if p.get("stock_quantity", 0) == 0]
         elif stock_status == "ok":
@@ -117,85 +144,71 @@ def _apply_filters(
     return filtered
 
 
-async def get_product_by_id(product_id: int) -> Optional[Dict[str, Any]]:
-    """Récupère un produit spécifique directement depuis Dolibarr via `GET /products/{id}`."""
+async def get_product_by_id(product_id: int) -> Dict[str, Any]:
+    """Récupère un produit unique depuis Dolibarr par son ID."""
     try:
         res = await dolibarr_client.get(f"products/{product_id}")
-        if res and isinstance(res, dict):
-            qty = int(float(res.get("stock_real", 0) or 0))
-            res_qty = int(float(res.get("stock_reserved", 0) or 0))
-            return {
-                "id_product": int(res.get("id")),
-                "reference": res.get("ref"),
-                "label": res.get("label"),
-                "description": res.get("description", ""),
-                "category_id": None,
-                "price_purchase": float(res.get("cost_price", 0.0) or 0.0),
-                "price_sell": float(res.get("price", 0.0) or 0.0),
-                "status": "ACTIF" if str(res.get("status_buy", "1")) == "1" else "INACTIF",
-                "stock_quantity": qty,
-                "stock_reserved": res_qty,
-                "stock_min": int(float(res.get("seuil_stock_alerte", 5) or 5)),
-                "stock_max": 100,
-                "stock_available": max(0, qty - res_qty),
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }
-    except Exception as e:
-        logger.error(f"Échec de la récupération du produit #{product_id} dans Dolibarr: {e}")
+        if not res or not isinstance(res, list) or len(res) == 0:
+            raise RuntimeError(f"Produit #{product_id} non trouvé dans Dolibarr.")
+        p = res[0]
+        
+        stock_qty = 0
+        try:
+            stk_info = await dolibarr_client.get(f"products/{product_id}/stock")
+            if stk_info and isinstance(stk_info, list) and len(stk_info) > 0:
+                stock_qty = int(float(stk_info[0].get("stock_reel", 0) or 0))
+        except Exception:
+            stock_qty = int(float(p.get("stock_real", 0) or 0))
 
-    return None
+        return {
+            "id_product": int(p.get("id")),
+            "reference": p.get("ref", f"DOL-{p.get('id')}"),
+            "label": p.get("label", "Produit Dolibarr"),
+            "description": p.get("description", ""),
+            "category_id": None,
+            "price_purchase": float(p.get("cost_price", 0.0) or 0.0),
+            "price_sell": float(p.get("price", 0.0) or 0.0),
+            "status": "ACTIF" if str(p.get("status_buy", "1")) == "1" else "INACTIF",
+            "stock_quantity": stock_qty,
+            "stock_reserved": 0,
+            "stock_min": int(float(p.get("seuil_stock_alerte", 5) or 5)),
+            "stock_max": 100,
+            "stock_available": stock_qty,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Échec récupération produit #{product_id} dans Dolibarr: {e}", exc_info=True)
+        raise RuntimeError(f"Produit non trouvé: {str(e)}") from e
 
 
 async def create_product(product_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Création synchrone directe du produit dans Dolibarr via l'API REST (`POST /products`).
-    Se répercute immédiatement dans la base Dolibarr.
-    """
+    """Création d'un produit directement dans Dolibarr ERP."""
     payload = {
         "ref": product_data["reference"],
         "label": product_data["label"],
         "description": product_data.get("description", ""),
-        "type": "0",  # 0 = Produit physique
-        "price_base_type": "HT",
         "price": float(product_data.get("price_sell", 0.0)),
         "cost_price": float(product_data.get("price_purchase", 0.0)),
-        "status": "1" if product_data.get("status", "ACTIF") == "ACTIF" else "0",
         "status_buy": "1" if product_data.get("status", "ACTIF") == "ACTIF" else "0",
-        "status_batch": "0",
-        "tobuy": "1",
-        "tosell": "1"
+        "status": "1",
+        "type": "0",
+        "seuil_stock_alerte": str(product_data.get("stock_min", 5))
     }
 
     try:
-        logger.info(f"Création synchrone du produit dans Dolibarr API: {payload['ref']}")
+        logger.info(f"Création du produit '{product_data['reference']}' dans Dolibarr API")
         res = await dolibarr_client.post("products", payload)
-        new_id = res if isinstance(res, int) else (res.get("id") if isinstance(res, dict) else 1)
-        
-        product_data["id_product"] = int(new_id)
-        product_data["stock_available"] = max(0, product_data.get("stock_quantity", 0) - product_data.get("stock_reserved", 0))
-        product_data["created_at"] = datetime.now(timezone.utc).isoformat()
-        product_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-
-        # Si un stock initial est défini, tenter d'enregistrer le mouvement dans Dolibarr
-        if product_data.get("stock_quantity", 0) > 0:
-            await record_stock_movement(
-                product_id=int(new_id),
-                movement_type="ENTREE",
-                quantity=product_data["stock_quantity"],
-                reference_doc="INIT-STOCK",
-                comment="Stock initial à la création"
-            )
-
-        return product_data
+        prod_id = res if isinstance(res, int) else (res.get("id") if isinstance(res, dict) else 1)
+        return await get_product_by_id(int(prod_id))
     except Exception as e:
-        logger.error(f"Échec création produit dans Dolibarr API: {e}", exc_info=True)
+        logger.error(f"Échec création produit dans Dolibarr: {e}", exc_info=True)
         raise RuntimeError(f"Erreur Dolibarr lors de la création du produit: {str(e)}") from e
 
 
-async def update_product(product_id: int, product_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Mise à jour synchrone du produit directement dans Dolibarr via `PUT /products/{id}`."""
-    payload = {"type": "0", "price_base_type": "HT"}
+async def update_product(product_id: int, product_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Mise à jour directe du produit dans Dolibarr via `PUT /products/{id}`."""
+    payload = {}
     if "reference" in product_data: payload["ref"] = product_data["reference"]
     if "label" in product_data: payload["label"] = product_data["label"]
     if "description" in product_data: payload["description"] = product_data["description"]
@@ -255,16 +268,18 @@ async def record_stock_movement(
     user_id: Optional[int] = None
 ) -> Dict[str, Any]:
     """Enregistre un mouvement de stock directement dans Dolibarr via `POST /stockmovements`."""
+    warehouse_id = await _get_or_create_default_warehouse()
     qty = abs(quantity) if movement_type.upper() in ["ENTREE", "AJUSTEMENT_PLUS"] else -abs(quantity)
     payload = {
         "product_id": product_id,
+        "warehouse_id": warehouse_id,
         "qty": qty,
         "label": comment or f"Mouvement Smart ERP ({movement_type})",
         "inventorycode": reference_doc or "SMART-ERP"
     }
 
     try:
-        logger.info(f"Enregistrement du mouvement de stock #{product_id} dans Dolibarr: qty={qty}")
+        logger.info(f"Enregistrement du mouvement de stock #{product_id} dans Dolibarr: qty={qty}, warehouse={warehouse_id}")
         res = await dolibarr_client.post("stockmovements", payload)
         mvt_id = res if isinstance(res, int) else (res.get("id") if isinstance(res, dict) else 1)
         return {
@@ -278,7 +293,7 @@ async def record_stock_movement(
             "created_by_user_id": user_id
         }
     except Exception as e:
-        logger.warning(f"Stock movement in Dolibarr skipped (warehouse setup required): {e}")
+        logger.warning(f"Erreur enregistrement mouvement Dolibarr: {e}")
         return {
             "id_movement": 1,
             "product_id": product_id,

@@ -631,19 +631,30 @@ async function saveProduct() {
   savingProduct.value = true
   modalError.value = ''
 
+  const payload = {
+    ...productForm.value,
+    category_id: productForm.value.category_id ? Number(productForm.value.category_id) : null,
+    price_purchase: Number(productForm.value.price_purchase || 0),
+    price_sell: Number(productForm.value.price_sell || 0),
+    stock_quantity: Number(productForm.value.stock_quantity || 0),
+    stock_reserved: Number(productForm.value.stock_reserved || 0),
+    stock_min: Number(productForm.value.stock_min || 0),
+    stock_max: Number(productForm.value.stock_max || 100)
+  }
+
   try {
     if (editingProduct.value) {
-      await api.put(`/products/${editingProduct.value.id_product}`, productForm.value)
+      await api.put(`/products/${editingProduct.value.id_product}`, payload)
       pageSuccess.value = 'Produit mis à jour avec succès !'
     } else {
-      await api.post('/products/', productForm.value)
+      await api.post('/products/', payload)
       pageSuccess.value = 'Nouveau produit créé avec succès !'
     }
 
     showProductModal.value = false
     await fetchData()
   } catch (error) {
-    modalError.value = error?.response?.data?.detail || 'Erreur lors de l\'enregistrement du produit.'
+    modalError.value = error?.response?.data?.detail?.[0]?.msg || error?.response?.data?.detail || 'Erreur lors de l\'enregistrement du produit.'
   } finally {
     savingProduct.value = false
   }

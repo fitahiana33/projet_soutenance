@@ -8,6 +8,7 @@ import RolesIndex from '../views/roles/RolesIndex.vue'
 import DolibarrIndex from '../views/dolibarr/DolibarrIndex.vue'
 import ProductsIndex from '../views/products/ProductsIndex.vue'
 import CategoriesIndex from '../views/products/CategoriesIndex.vue'
+import StocksIndex from '../views/stocks/StocksIndex.vue'
 
 const routes = [
   {
@@ -36,6 +37,12 @@ const routes = [
     path: '/products/categories',
     name: 'categories',
     component: CategoriesIndex,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/stocks',
+    name: 'stocks',
+    component: StocksIndex,
     meta: { requiresAuth: true }
   },
   {
