@@ -1,0 +1,328 @@
+Catégories Principales du Personnel 
+La classification varie selon les pays, mais certaines catégories générales sont communes : 
+1. Ouvriers 
+ Exécutent des tâches manuelles ou techniques spécifiques. 
+ Peu d’autonomie dans les décisions. 
+ Exemple : Opérateurs, conducteurs d'engins, techniciens d'usine. 
+2. Employés 
+ Chargés de tâches administratives, commerciales ou de support. 
+ Exemple : Secrétaires, assistants administratifs, caissiers. 
+3. Techniciens et Agents de Maîtrise (TAM) 
+ Intermédiaire entre les employés et les cadres. 
+ Supervisent des équipes ou des projets, souvent avec une expertise technique. 
+ Exemple : Chefs d’équipe, superviseurs. 
+4. Cadres 
+ Exercent des fonctions de gestion, d’encadrement ou de responsabilité stratégique. 
+ Niveau élevé d’autonomie dans la prise de décisions. 
+ Exemple : Directeurs, responsables de département. 
+5. Dirigeants 
+ Niveau le plus élevé de responsabilité dans une entreprise. 
+ Décisions stratégiques concernant l’orientation de l’entreprise. 
+ Exemple : PDG, membres du comité de direction. 
+c. Critères de Classification 
+Certains critères influencent la classification dans le secteur privé : 
+ Compétences techniques ou générales. 
+ Diplômes et certifications. 
+ Expérience professionnelle. 
+ Position hiérarchique. 
+ Niveau de responsabilité et autonomie.
+
+RESSOURCES HUMAINES 
+1. FONCTIONNALITÉS ESSENTIELLES (Base RH) 
+A. Gestion du personnel 
+ Fiche employé complète (identité, contact, poste, photo, etc.) 
+ Suivi du contrat de travail (type, durée, période d’essai, renouvellement) 
+ Historique des postes, promotions, mobilités 
+ Gestion des documents RH (CIN, diplômes, attestations, etc.) 
+B. Gestion des absences et congés 
+ Suivi des soldes de congés (payés, maladie, exceptionnels) 
+ Workflow de demande et validation hiérarchique 
+ Intégration avec le calendrier de l’entreprise 
+ Alertes automatiques pour congés non validés ou absences répétées 
+C. Gestion du temps et des présences 
+ Feuille de temps / pointage (manuel ou automatique via badgeuse ou application 
+mobile) 
+ Heures supplémentaires, retards, pauses 
+ Génération automatique du relevé de présence 
+ Interface d’intégration avec la paie 
+D. Gestion de la paie (base) 
+ Fiches de paie mensuelles (salaire brut, retenues, net à payer) 
+ Paramétrage des taux CNAPS, OSTIE, IRSA, etc.  
+ Gestion des primes, avances, heures supplémentaires, absences 
+ Export vers format comptable ou PDF 
+2. FONCTIONNALITÉS AVANCÉES (RH numériques / 
+intelligentes) 
+A. Tableaux de bord et indicateurs RH 
+ Statistiques sur les effectifs (par genre, âge, service, contrat, etc.) 
+ Taux de turnover, absentéisme, ancienneté moyenne 
+ Alertes de fin de contrat, congés non pris, dépassement de budget formation 
+ Visualisation graphique 
+B. Gestion des performances 
+ Évaluations périodiques automatisées (scoring) 
+ Génération de rapports de performance 
+C. Gestion des compétences 
+ Cartographie des compétences de l’entreprise 
+ Matching automatique profil / poste à pourvoir 
+ Suggestion de formations en fonction des écarts de compétences 
+D. Self-Service Employé (Espace employé) 
+ Mise à jour personnelle des informations 
+ Consultation bulletins de paie, solde de congés 
+ Soumission de demandes (attestations, congés, remboursements) 
+ Système de messagerie RH 
+E. Portail Manager 
+ Validation des demandes de son équipe 
+ Suivi des performances et absences 
+ Tableaux de bord spécifiques par service 
+F. Automatisation et Intelligence artificielle 
+ Chatbot RH pour répondre aux questions fréquentes (congés, paie, etc.) 
+ Génération automatique de documents RH (contrat, attestation, etc.) 
+ Prédiction de turnover (analyse de données) 
+ Détection d’anomalies sur les heures ou la paie 
+ Recommandation de candidats (matching CV ↔ poste) 
+G. Conformité et audit 
+ Journalisation des actions (traces d’audit) 
+ Gestion des autorisations par rôle (employé, manager, RH, admin) 
+ Sauvegarde et archivage légal des documents RH
+
+LES DROITS DE CONGES 
+Les congés font partie des droits fondamentaux des employés et servent à garantir leur bien
+être et leur équilibre entre vie professionnelle et personnelle. La gestion des congés varie en 
+fonction des lois, des réglementations nationales, et des politiques internes des organisations. 
+Voici un guide détaillé sur les notions et les fonctionnalités des congés : 
+1. Notions de Base sur les Congés 
+a. Définition 
+Un congé est une période d’absence autorisée, pendant laquelle un employé ne travaille pas 
+mais conserve son contrat de travail et, selon le type de congé, sa rémunération. 
+b. Types de Congés 
+Les congés peuvent être classés en plusieurs catégories selon leur nature et leur objectif : 
+1. Congés Payés 
+ Temps de repos obligatoire pendant lequel l’employé continue de percevoir son 
+salaire. 
+ Exemple : 4 semaines minimum de congés payés annuels dans de nombreux pays. 
+2. Congés Sans Solde 
+ Absence autorisée sans rémunération. 
+ Motifs variés : projets personnels, études, voyages, etc. 
+3. Congés Spéciaux ou Exceptionnels 
+ Accordés pour des événements spécifiques : 
+o Mariage. 
+o Décès d’un proche. 
+o Naissance ou adoption d’un enfant. 
+ Ces congés sont souvent réglementés par la loi. 
+4. Congés Maladie 
+ Absence liée à une incapacité médicale temporaire ou prolongée. 
+ Nécessite généralement un certificat médical. 
+5. Congé de Maternité, Paternité et Adoption 
+ Protège les droits des parents à s’occuper de leurs enfants lors de naissances ou 
+d’adoptions. 
+ Durées et rémunérations varient selon les pays et politiques d’entreprise. 
+6. Congés Sabbatiques 
+ Période prolongée d’absence pour poursuivre des projets personnels (formation, 
+voyage, etc.). 
+ Souvent sans rémunération et soumis à certaines conditions (ancienneté, accord de 
+l'employeur). 
+7. Congés Formation 
+ Permettent à l'employé de suivre une formation pour développer ses compétences 
+professionnelles. 
+ Généralement encadrés par des lois ou accords collectifs. 
+2. Fonctionnalités et Gestion des Congés 
+a. Suivi et Gestion des Congés 
+La gestion des congés repose sur des processus qui garantissent la disponibilité des employés 
+tout en respectant leurs droits. Les fonctionnalités essentielles incluent : 
+1. Gestion des Demandes de Congé 
+ Les employés soumettent une demande de congé via un outil de gestion RH (ou en 
+papier dans certaines structures). 
+ Les responsables hiérarchiques approuvent ou refusent les demandes en fonction des 
+priorités opérationnelles. 
+2. Calcul des Droits aux Congés 2,5 jours/mois cumulable pendant 3 ans 
+ Basé sur : 
+o Durée de service (ancienneté). 
+o Contrat de travail (temps plein ou partiel). 
+o Accords collectifs ou politiques internes. 
+3. Suivi du Solde des Congés 
+ Affichage des congés déjà pris et restant à utiliser. 
+ Facilite la planification pour éviter l’accumulation ou la perte de droits. 
+4. Planning des Absences 
+ Éviter les absences simultanées dans des équipes clés. 
+ Maintenir une continuité des opérations. 
+b. Outils de Gestion des Congés 
+Dans les entreprises modernes, la gestion des congés est souvent informatisée. Les outils 
+courants incluent : 
+1. Logiciels RH 
+ Fonctions principales : 
+o Gestion des demandes en ligne. 
+o Notifications automatiques aux responsables. 
+o Calcul automatique des droits. 
+2. Applications Personnalisées 
+ Développement de solutions internes adaptées aux besoins spécifiques de 
+l’organisation. 
+ Intégration avec d’autres systèmes comme les paies et la gestion du temps. 
+3. Portails en Self-Service 
+ Permettent aux employés de consulter leur solde de congés, de soumettre des 
+demandes, et de suivre leur statut. 
+c. Enjeux et Bonnes Pratiques 
+ Conformité légale : Respect des lois nationales et des conventions collectives. 
+ Équité : Traiter toutes les demandes de manière transparente. 
+ Planification proactive : Prévoir les pics d’absences (vacances, congés maternité) 
+pour garantir la continuité des activités. 
+ Communication claire : S’assurer que les employés comprennent leurs droits et les 
+processus de demande. 
+3. Aspects Légaux des Congés 
+Les réglementations sur les congés varient d’un pays à l’autre. Voici quelques notions 
+générales importantes : 
+a. Droits des Employés 
+ Les congés payés sont souvent garantis par la loi. 
+ Les employeurs doivent respecter les règles sur : 
+o La durée minimale annuelle de congés. 
+o Les congés spéciaux obligatoires (ex. : congé maternité). 
+o La possibilité de reporter ou monétiser les congés non pris (selon le pays). 
+b. Obligations des Employeurs 
+ Tenir à jour les dossiers des congés de chaque employé. 
+ S’assurer que les employés utilisent leurs droits (risques psychosociaux si non 
+respectés). 
+ Respecter les normes de non-discrimination dans l'approbation des congés. 
+4. Importance de la Gestion des Congés 
+1. Bien-être des employés : Les congés réduisent le stress et améliorent la productivité. 
+2. Planification stratégique : Permet de maintenir les opérations en évitant les 
+surcharges de travail. 
+3. Conformité légale : Protège les employeurs des litiges liés à la violation des droits 
+des employés.
+
+Cahier des charges — Application Web intégrée Achats / Ventes 
+/ Stock / Inventaires (Grande entreprise) 
+1) Problématique et objectifs 
+Problématique 
+ Processus achats/ventes/stocks dispersés (Excel, emails, ERP partiel) 
+ Traçabilité insuffisante (qui a fait quoi / quand / pourquoi) 
+ Risques : ruptures, surstock, pertes, erreurs de valorisation, fraude interne, non
+conformités 
+ Objectifs 
+ Centralisation des flux : achats → réception → stockage → sortie → vente → 
+facturation → inventaire 
+ Standardisation des méthodes de gestion de stock (entrées/sorties, valorisation, 
+inventaires) 
+ Renforcement du contrôle interne (séparation des tâches, validationsl) 
+ Pilotage par KPI par rôle / service / site / entité 
+ Réduction des délais, erreurs et écarts d’inventaire 
+2) Périmètre fonctionnel 
+ Modules obligatoires 
+ Référentiels (articles, fournisseurs, clients, dépôts, unités, taxes, tarifs) 
+ Achats (demande d’achat →pro-forma →   approbation → commande → réception → 
+facture fournisseur→ paiement) 
+ Ventes (devis (pro-forma) → commande client → livraison → facture → encaissement) 
+ Stocks (mouvements, transferts, réservations, lots/séries, emplacements) 
+ Inventaires (inventaire tournant, inventaire annuel, écarts, ajustements contrôlés) 
+ Tableaux de bord / reporting (KPI par rôle) 
+ Administration / rôles / habilitations 
+ Intégration RH ou via API  
+3) Hypothèses et contraintes SI 
+ Multi-sites / multi-dépôts / multi-entités légales possible 
+ Volumétrie élevée (articles, mouvements, utilisateurs) 
+4) Gouvernance, rôles et gestion des accès (point central) 
+4.1 Principes de sécurité et habilitations 
+ RBAC (Role-Based Access Control) + ABAC (Attribute-Based Access Control)  
+ RBAC : rôles (Acheteur, Magasinier, Vendeur, Contrôleur, DAF, etc.) 
+ ABAC : restrictions par attributs (site, dépôt, famille d’articles, montant, département) 
+ Modèle multi-dimension 
+ Par département/service : Achats, Ventes, Magasin, Finance,  Direction 
+ Par hiérarchie : Opérateur → Superviseur → Manager → Directeur 
+ Par périmètre : Site / dépôt / région / 
+ Règles transverses : Règles générales qui s’appliquent à tous les modules et tous les rôles 
+(sécurité, cohérence, contrôle interne et traçabilité) 
+ Principe du moindre privilège (Least Privilege) : 
+Exemple concret : 
+ Un magasinier : 
+o peut enregistrer une réception et une sortie 
+o ne peut pas modifier les coûts, ni valider un ajustement de stock important 
+ Un commercial : 
+o peut créer devis/commande 
+o ne peut pas appliquer une remise > plafond sans validation du responsable 
+ Un acheteur : 
+o peut créer un bon de commande 
+o ne peut pas l’approuver si c’est lui-même le créateur 
+Bénéfices : 
+ Réduction du risque de fraude / erreurs 
+ Meilleure conformité (audit interne/externe) 
+ Limitation de l’impact si un compte est compromis 
+ Accès temporaire (délégation) avec expiration + justification 
+ Double validation sur opérations sensibles (ex : ajustement de stock, annulation 
+facture) 
+ Journalisation complète (historiques non modifiable) 
+4.2 Matrice de rôles  
+ Achats 
+ Demandeur (DA) : créer DA, suivre, pas de validation, pas de commande 
+ Approbation. N1/N2/N3 : valider selon seuils (montant / catégorie / fournisseur) 
+ Finance : Confirmer la disponibilité des fonds 
+ Acheteur : transformer DA → BC, négocier, gérer fournisseurs 
+ Responsable achats : valider BC au-delà seuil, débloquer litiges 
+ DG ou DAF (signataires légaux) : Approuver le BC 
+ Magasin / Stock 
+ Magasinier réception : enregistrer réception, contrôler quantités, générer bon de 
+réception et contrôler BL avec réf BC (Réception partielle autorisée) 
+ Magasinier sortie : préparer sortie/livraison, scanner, confirmer picking (article, quantité, 
+emplacement (zone), lot/série, lignes/heure, priorité,…) 
+ Chef magasin : valider transferts, autoriser inventaires, initier demandes d’ajustement 
+ Ventes 
+ Commercial : devis/commande, remise plafonnée, pas de livraison sans stock réservé 
+ Responsable ventes : validation remises élevées, annulation commande, déblocages 
+ Finance 
+ Rapprocher facture fournisseur vs réception vs BC (3-way match) 
+ Comptable client : facturation, avoirs, contrôle TVA 
+ DAF : validation exceptionnelle (seuils), via vue consolidée KPI 
+4.3 Séparation des tâches / Règles impératives 
+ Même personne ne doit pas : créer + approuver une DA/BC 
+ Même personne ne doit pas : réceptionner + valider facture fournisseur 
+ Même personne ne doit pas : créer client + valider avoir + encaisser 
+ Même personne ne doit pas : effectuer inventaire + valider ajustement 
+5) Méthodes de gestion de stock (à imposer par le système) 
+5.1 Règles de base – gestion des mouvements 
+ Entrée : réception fournisseur, retour client, ajustement positif, transfert entrant 
+ Sortie : livraison client, consommation interne, rebut, ajustement négatif, transfert 
+sortant 
+ Chaque mouvement doit être tracé: référence document, date/heure, utilisateur, 
+dépôt, emplacement, quantités, coût 
+ Numérotation automatique + non réutilisable 
+ Réservation stock 
+ Réservation à la commande client (configurable) 
+ Allocation FIFO/FEFO selon nature produit (périssables → FEFO) 
+ Lots / séries / DLUO (Date Limite d’Utilisation Optimale)/ DLC (Date Limite de Consommation)) 
+ Traçabilité lot obligatoire sur familles définies 
+ Blocage automatique si lot expiré / non conforme 
+5.2 Valorisation stock  
+ Méthodes supportées 
+ FIFO / CUMP (coût moyen pondéré)  
+ Règles de gel 
+ Clôture mensuelle : gel des coûts / mouvements rétrodatés sous contrôle 
+ Gestion des écarts de valorisation 
+ Rapports : variation de coût, inventaire vs valorisation, écarts de marge 
+6) Les KPIs 
+6.1 KPI par département / rôle 
+Direction Générale / Comité de Direction 
+ CA, marge brute, marge % (global + par Xts/site) 
+ Valeur stock total + évolution (M-1, M-12) 
+ Rotation stock (turnover)  
+ Top 5 surstocks / obsolescence (valeur immobilisée) 
+ Taux d’écarts inventaire (valeur + %) 
+Responsable Achats / Supply Chain 
+ Cycle time DA→BC (médiane, P90) 
+ Respect délais fournisseurs (OTD supplier) 
+ Taux réception conforme (qualité/quantité) 
+ Taux litiges facture (mismatch 3-way match) 
+ Concentration fournisseurs (dépendance) 
+ Évolution prix d’achat par article clé (index) 
+ Taux de commandes urgentes (hors processus standard) 
+Magasin / Responsable Stock 
+ Taux de précision stock (Théorique vs phusique) 
+ Obsolescence / péremption (valeur, lots à risque) 
+ Productivité préparation (lignes/heure, erreurs picking) 
+ Temps de traitement réception (dock-to-stock) 
+Ventes / Responsable Commercial 
+ Commandes en cours, livrées, en retard 
+ Taux annulation commandes + motifs 
+ Remises accordées vs plafond / exceptions 
+ Avoirs : volume, valeur, causes (retour, erreur prix, casse) 
+ Backlog non servi (stock insuffisant) 
+Finance / DAF 
+ Rapprochement achats : factures bloquées (3-way mismatch) 
+ Valeur stock comptable vs opérationnelle (écarts) 
+ Variation de marge (prix vente vs coût)
+

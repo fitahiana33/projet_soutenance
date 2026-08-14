@@ -1,0 +1,657 @@
+Notre IA doit analyser les données de l'entreprise, faire des prédictions, détecter des anomalies et proposer des décisions.
+
+1. Le principe général
+
+On aurait :
+
+                    DOLIBARR
+                       │
+          ┌────────────┼────────────┐
+          ↓            ↓            ↓
+        RH          STOCK        ACHATS
+          │            │            │
+          └────────────┼────────────┘
+                       ↓
+                ┌──────────────┐
+                │   FASTAPI    │
+                │  Data Layer  │
+                └──────┬───────┘
+                       ↓
+             ┌───────────────────┐
+             │   MODULE IA       │
+             │                   │
+             │ • Prédiction      │
+             │ • Anomalies       │
+             │ • Scoring         │
+             │ • Recommandation  │
+             │ • Simulation      │
+             └─────────┬─────────┘
+                       ↓
+                ┌──────────────┐
+                │    VUE.JS    │
+                │  Dashboard   │
+                └──────────────┘
+2. IA pour le stock
+
+C'est probablement l'une des parties les plus intéressantes à montrer au jury.
+
+Dolibarr nous donne par exemple :
+
+Produit : Ordinateur portable
+Stock actuel : 25
+Ventes précédentes :
+Janvier : 40
+Février : 52
+Mars : 48
+Avril : 61
+Mai : 58
+Juin : 70
+
+Notre système analyse l'historique.
+
+Il peut prédire :
+
+📈 Demande prévue le mois prochain : 76 unités
+
+Puis :
+
+Stock actuel          25
+Demande prévisionnelle 76
+Délai fournisseur      12 jours
+Stock de sécurité      15
+
+Le système peut conclure :
+
+⚠️ Risque élevé de rupture
+
+Et proposer :
+
+💡 Quantité recommandée : 80 unités
+
+3. IA pour les achats
+
+On peut également analyser les fournisseurs.
+
+Exemple :
+
+Fournisseur A
+Prix       : 100 000 Ar
+Délai      : 15 jours
+Retards    : 8
+Qualité    : 91 %
+
+Fournisseur B
+Prix       : 105 000 Ar
+Délai      : 5 jours
+Retards    : 1
+Qualité    : 97 %
+
+Notre système calcule un score fournisseur.
+
+Par exemple :
+
+Prix             30 %
+Délai            25 %
+Fiabilité        25 %
+Qualité          20 %
+
+Résultat :
+
+Fournisseur B
+Score : 93 %
+
+Et le système peut recommander :
+
+Fournisseur B est actuellement le meilleur choix.
+
+Ce n'est pas simplement une IA qui parle : elle exploite les données réelles de l'ERP.
+
+4. IA pour les RH
+
+Là aussi, on peut faire quelque chose de sérieux.
+
+Par exemple, avec les données historiques :
+
+ancienneté
+salaire
+absences
+heures supplémentaires
+évolution professionnelle
+formations
+évaluations
+etc.
+
+On peut construire un modèle qui estime un risque de départ.
+
+Exemple :
+
+Employé : EMP-025
+
+Risque estimé : 72 %
+
+Facteurs principaux :
+- forte augmentation des heures supplémentaires
+- faible évolution récente
+- nombreuses absences
+- ancienneté importante
+
+Attention : ce serait présenté comme un indicateur d'aide à la décision, pas comme une vérité sur l'employé.
+
+Le responsable RH pourrait alors examiner la situation.
+
+5. IA pour le recrutement
+
+On peut aussi reprendre notre idée initiale.
+
+Supposons une offre :
+
+Développeur Python
+
+Compétences recherchées :
+Python
+FastAPI
+PostgreSQL
+Git
+
+Le système analyse les CV et produit un score :
+
+Candidat A     91 %
+Candidat B     78 %
+Candidat C     64 %
+
+Mais surtout, il explique le score :
+
+Candidat A
+
+Python       ✓
+FastAPI      ✓
+PostgreSQL   ✓
+Git          ✓
+
+Expérience : 2 ans
+
+Cela donne un système de matching, pas simplement un formulaire de recrutement.
+
+6. Détection d'anomalies
+
+C'est une autre fonctionnalité intéressante.
+
+L'IA analyse les données normales de l'entreprise.
+
+Exemple :
+
+Heures supplémentaires habituelles :
+10–20 h / mois
+
+Un mois :
+
+Employé X : 67 h
+
+Le système détecte :
+
+⚠️ Valeur inhabituelle détectée
+
+Pour le stock :
+
+Consommation habituelle : 100 unités/mois
+
+Ce mois : 420 unités
+
+→ anomalie.
+
+Pour les achats :
+
+Prix habituel : 100 000 Ar
+
+Nouvelle commande : 160 000 Ar
+
+→ anomalie potentielle.
+
+7. Le plus intéressant : les recommandations
+
+C'est ici que notre projet devient réellement "Smart ERP".
+
+Le système combine plusieurs données.
+
+Par exemple :
+
+VENTES
+   ↓
+STOCK
+   ↓
+ACHATS
+   ↓
+FOURNISSEURS
+   ↓
+COÛTS
+
+Et il peut produire :
+
+Recommandation : commander 120 unités du produit X auprès du fournisseur B avant le 20 septembre afin de réduire le risque de rupture estimé à 78 %.
+
+Le décideur peut ensuite accepter ou refuser.
+
+8. Et les simulations ?
+
+C'est probablement la fonctionnalité qui peut faire une très bonne démonstration devant le jury.
+
+Le responsable écrit :
+
+Que se passe-t-il si j'augmente le stock de sécurité de 20 % ?
+
+Notre système calcule différents scénarios.
+
+Ou :
+
+Que se passe-t-il si le fournisseur augmente ses prix de 10 % ?
+
+Ou :
+
+Que se passe-t-il si les ventes augmentent de 15 % ?
+
+On obtient :
+
+SCÉNARIO ACTUEL
+Stock moyen : 250
+Coût : 12 M Ar
+Risque rupture : 18 %
+
+SCÉNARIO +20 %
+Stock moyen : 300
+Coût : 14 M Ar
+Risque rupture : 7 %
+
+Le décideur peut comparer.
+
+9. Est-ce qu'on doit entraîner une grosse IA ?
+
+Non.
+
+C'est très important pour notre projet.
+
+Nous n'allons pas créer un modèle gigantesque comme ChatGPT.
+
+Pour les prédictions, nous pouvons utiliser des modèles de Machine Learning relativement légers avec Python.
+
+Par exemple :
+
+Python
+│
+├── pandas
+├── numpy
+├── scikit-learn
+└── éventuellement statsmodels
+
+Et pour certaines fonctionnalités :
+
+LLM / modèle de langage
+        ↓
+Assistant décisionnel
+
+Donc ton PC peut largement suffire pour un prototype sérieux.
+
+10. Notre IA serait donc composée de plusieurs briques
+                 SMART AI ENGINE
+                       │
+       ┌───────────────┼────────────────┐
+       ↓               ↓                ↓
+  PRÉDICTION       ANOMALIES         SCORING
+       │               │                │
+       ↓               ↓                ↓
+   Stock/RH        Stock/RH        Fournisseurs
+       │
+       └───────────────┬────────────────┘
+                       ↓
+                RECOMMANDATIONS
+                       │
+                       ↓
+                  SIMULATIONS
+                       │
+                       ↓
+                 AIDE À LA DÉCISION
+Et c'est ça notre vraie valeur ajoutée
+
+Dolibarr sait gérer les opérations.
+
+Notre système comprend les données et aide à décider.
+
+C'est cette distinction que je mettrais au centre de la soutenance :
+
+Dolibarr = système transactionnel
+Notre plateforme = système analytique, prédictif et décisionnel
+
+Et FastAPI devient le pont entre Dolibarr, notre moteur IA et Vue.js.
+
+Pour les 3 mois, je conseille de ne pas essayer de réaliser toutes les IA ci-dessus. On choisirait 2 ou 3 cas d'usage très solides, par exemple prévision de stock + scoring fournisseurs + détection d'anomalies, puis on ajouterait le module RH si le temps le permet.
+
+donc,explique moi bien comment peut avoir cette IA si on veut tous les faires?
+
+Oui. Si on veut toutes les fonctionnalités IA, il faut surtout comprendre une chose : on ne construit pas une seule IA qui fait tout. On construit un moteur IA composé de plusieurs modèles/services spécialisés, chacun utilisant les données de Dolibarr ou de notre module RH.
+
+1. Architecture globale
+                         ┌─────────────────┐
+                         │    Dolibarr     │
+                         │ ERP existant    │
+                         └────────┬────────┘
+                                  │ API
+                                  ▼
+                         ┌─────────────────┐
+                         │     FastAPI     │
+                         │ API / Orchestration
+                         └────────┬────────┘
+                                  │
+                 ┌────────────────┼────────────────┐
+                 ▼                ▼                ▼
+          ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+          │ Data Engine │ │  AI Engine  │ │ Decision    │
+          │             │ │             │ │ Engine      │
+          └──────┬──────┘ └──────┬──────┘ └──────┬──────┘
+                 │               │               │
+                 └───────────────┼───────────────┘
+                                 ▼
+                          ┌─────────────┐
+                          │   Vue.js    │
+                          │ Dashboard   │
+                          └─────────────┘
+2. Le Data Engine
+
+Avant de faire de l'IA, il faut récupérer et préparer les données.
+
+Par exemple, Dolibarr nous fournit :
+
+Produits
+Ventes
+Achats
+Fournisseurs
+Stocks
+Clients
+Employés
+Salaires
+Absences
+...
+
+FastAPI récupère ces données.
+
+Puis Python les prépare :
+
+Données brutes
+     ↓
+Nettoyage
+     ↓
+Transformation
+     ↓
+Calcul des indicateurs
+     ↓
+Données prêtes pour l'IA
+
+C'est une partie très importante du projet.
+
+3. Ensuite, plusieurs modèles IA
+A. Modèle de prévision
+
+Pour le stock :
+
+Historique des ventes
+        ↓
+     Modèle ML
+        ↓
+Demande future
+
+Exemple :
+
+Historique :
+100
+120
+115
+140
+150
+160
+
+        ↓
+
+Prévision :
+175
+
+On peut faire pareil pour :
+
+ventes
+consommation
+besoins en stock
+éventuellement masse salariale
+4. Modèle de détection d'anomalies
+
+Ici, on ne cherche pas à prédire.
+
+On cherche :
+
+Qu'est-ce qui paraît anormal ?
+
+Exemple :
+
+Prix habituel fournisseur
+100 000 – 110 000 Ar
+
+Nouvelle facture
+180 000 Ar
+
+        ↓
+
+IA
+
+        ↓
+
+⚠️ Anomalie potentielle
+
+Autres exemples :
+
+hausse inhabituelle des absences
+consommation anormale
+quantité d'achat inhabituelle
+heures supplémentaires inhabituelles
+transaction inhabituelle
+5. Modèle de scoring
+
+Ici, l'IA calcule un score.
+
+Fournisseur
+Prix       30 %
+Qualité    25 %
+Délai      25 %
+Fiabilité  20 %
+
+Résultat :
+
+Fournisseur A → 72 %
+Fournisseur B → 91 %
+Fournisseur C → 84 %
+Candidat
+
+Même principe :
+
+Compétences
+Expérience
+Diplômes
+Correspondance avec le poste
+
+Résultat :
+
+Candidat A → 93 %
+Candidat B → 81 %
+Candidat C → 68 %
+6. Modèle RH prédictif
+
+Pour les employés, on pourrait avoir un modèle spécialisé.
+
+Il analyse par exemple :
+
+ancienneté
+évolution
+absences
+heures supplémentaires
+rémunération
+évaluations
+formations
+mobilité
+
+Puis produit :
+
+Risque estimé
+     ↓
+Faible / Moyen / Élevé
+
+Important : ce résultat doit être présenté comme une estimation destinée à aider le RH, pas comme une décision automatique concernant une personne.
+
+7. Moteur de recommandations
+
+C'est là qu'on rassemble les résultats.
+
+Exemple :
+
+Prévision stock
+       +
+Délai fournisseur
+       +
+Historique ventes
+       +
+Stock actuel
+       ↓
+Recommandation
+
+Le système peut produire :
+
+« Le stock risque d'être insuffisant dans les prochaines semaines. Une commande supplémentaire est recommandée. »
+
+Même chose pour les fournisseurs :
+
+Scoring fournisseurs
+        +
+Prix
+        +
+Délais
+        +
+Qualité
+        ↓
+Fournisseur recommandé
+8. Moteur de simulation
+
+Celui-ci est différent.
+
+On donne une hypothèse :
+
+« Et si les ventes augmentaient de 20 % ? »
+
+Le système recalcule :
+
+Stock
+Achats
+Coûts
+Risque de rupture
+
+Ou :
+
+« Et si le fournisseur augmentait ses prix de 10 % ? »
+
+On recalcule :
+
+Coût d'achat
+Marge
+Coût total
+
+On pourra alors afficher :
+
+                Situation actuelle    Scénario +20%
+
+Stock                   250                 180
+Coût                   12 M                15 M
+Risque rupture          8 %                27 %
+
+Ça devient un véritable outil d'aide à la décision.
+
+9. Et le chatbot IA ?
+
+On peut ajouter une dernière couche :
+
+              Assistant IA
+                   │
+        ┌──────────┼──────────┐
+        ↓          ↓          ↓
+       ERP       Analytics    IA
+
+Le directeur peut demander :
+
+« Quels produits présentent actuellement le plus grand risque de rupture ? »
+
+L'assistant va chercher les résultats de notre système et répondre.
+
+Ou :
+
+« Quel fournisseur semble actuellement le plus intéressant pour ce produit ? »
+
+Il ne doit pas inventer la réponse : il doit s'appuyer sur les données et résultats calculés par notre plateforme.
+
+10. Donc, au final, notre "IA" serait ceci
+                  SMART AI ENGINE
+                         │
+       ┌─────────────────┼─────────────────┐
+       │                 │                 │
+       ▼                 ▼                 ▼
+  PRÉVISION          ANOMALIES          SCORING
+       │                 │                 │
+       ├────────────┬────┴────┬────────────┤
+       │            │         │
+       ▼            ▼         ▼
+     STOCK         RH       ACHATS
+       │            │         │
+       └────────────┼─────────┘
+                    ▼
+             RECOMMANDATIONS
+                    │
+                    ▼
+               SIMULATIONS
+                    │
+                    ▼
+              AIDE À LA DÉCISION
+                    │
+                    ▼
+              ASSISTANT IA
+Et techniquement ?
+
+On peut rester sur ton choix :
+
+Vue.js
+   ↓
+FastAPI
+   ↓
+Python AI/ML
+   ↓
+PostgreSQL
+
+avec des bibliothèques comme :
+
+pandas
+numpy
+scikit-learn
+statsmodels
+
+et éventuellement un LLM pour l'assistant conversationnel.
+
+Le point le plus important
+
+Nous n'avons pas besoin d'entraîner une grosse IA nous-mêmes.
+
+Pour chaque problème, on peut utiliser un modèle adapté :
+
+Besoin	Approche
+Prévoir les ventes	modèle de régression / séries temporelles
+Prévoir les ruptures	prévision + règles métier
+Détecter anomalies	modèles d'anomaly detection
+Scorer fournisseurs	scoring pondéré / ML
+Matcher CV ↔ poste	NLP + similarité
+Risque RH	modèle de classification
+Recommandations	moteur de règles + résultats ML
+Simulation	modèle/scénarios mathématiques
+Chatbot	LLM + données de notre système
+
+Donc oui, on peut viser l'ensemble, mais on les développera un par un, et non tous en même temps.
+
+Pour les 3 mois, je construirais d'abord le socle de données + prévision stock + anomalies + scoring + recommandations, puis RH, simulation et assistant IA. C'est beaucoup plus réaliste et ça permet d'avoir quelque chose de démontrable à chaque étape.

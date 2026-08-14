@@ -1,0 +1,85 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: erp-postgres
+    environment:
+      POSTGRES_DB: erpdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: erp-backend
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: erp-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+  dolibarr-db:
+    image: mariadb:11.4
+    container_name: smart_erp_dolibarr_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: dolidb
+      MYSQL_USER: dolibarr
+      MYSQL_PASSWORD: dolibarr_password
+      MYSQL_ROOT_PASSWORD: root_password
+    volumes:
+      - dolibarr_db_data:/var/lib/mysql
+
+  dolibarr:
+    image: dolibarr/dolibarr:23.0.3
+    container_name: smart_erp_dolibarr
+    restart: unless-stopped
+    depends_on:
+      - dolibarr-db
+    ports:
+      - "8080:80"
+    environment:
+      DOLI_DB_TYPE: mysqli
+      DOLI_DB_HOST: dolibarr-db
+      DOLI_DB_HOST_PORT: 3306
+      DOLI_DB_NAME: dolidb
+      DOLI_DB_USER: dolibarr
+      DOLI_DB_PASSWORD: dolibarr_password
+      DOLI_URL_ROOT: http://localhost:8080
+    volumes:
+      - dolibarr_documents:/var/www/documents
+      - dolibarr_custom:/var/www/html/custom
+
+volumes:
+  postgres_data:
+  dolibarr_db_data:
+  dolibarr_documents:
+  dolibarr_custom:
