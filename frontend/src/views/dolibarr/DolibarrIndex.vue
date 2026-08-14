@@ -36,7 +36,7 @@
               <h3 class="conn-title">Statut de l'API Dolibarr ERP</h3>
               <AppBadge
                 :variant="connectionStatus.connected ? 'success' : 'danger'"
-                :label="connectionStatus.connected ? 'Connecté' : 'Hors ligne / Indisponible'"
+                :label="connectionStatus.connected ? 'Connecté' : 'Non connecté / Indisponible'"
               />
             </div>
             <p class="conn-desc">

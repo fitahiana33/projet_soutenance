@@ -81,7 +81,7 @@ async def trigger_sync(
     current_user: User = Depends(require_permission("STOCK_UPDATE"))
 ):
     try:
-        user_label = f"{current_user.first_name or ''} {current_user.name}".trim() or current_user.email
+        user_label = f"{current_user.first_name or ''} {current_user.name}".strip() or current_user.email
         return await run_synchronization(
             entities=payload.entities,
             force_full=payload.force_full,
