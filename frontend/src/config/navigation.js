@@ -27,6 +27,12 @@ export const navigationItems = [
     ]
   },
   {
+    name: 'Gestion des Stocks',
+    path: '/stocks',
+    icon: 'box',
+    badge: null
+  },
+  {
     name: 'Utilisateurs',
     path: '/users',
     icon: 'users',

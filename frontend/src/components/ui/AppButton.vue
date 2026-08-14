@@ -25,7 +25,7 @@ const props = defineProps({
   size: {
     type: String,
     default: 'md',
-    validator: (value) => ['sm', 'md', 'lg'].includes(value)
+    validator: (value) => ['xs', 'sm', 'md', 'lg'].includes(value)
   },
   to: { type: [String, Object], default: null },
   type: { type: String, default: 'button' },
@@ -73,6 +73,11 @@ function handleClick(event) {
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.btn--xs {
+  padding: 0.25rem 0.5rem;
+  font-size: var(--font-size-xs);
 }
 
 .btn--sm {
