@@ -9,6 +9,9 @@ import DolibarrIndex from '../views/dolibarr/DolibarrIndex.vue'
 import ProductsIndex from '../views/products/ProductsIndex.vue'
 import CategoriesIndex from '../views/products/CategoriesIndex.vue'
 import StocksIndex from '../views/stocks/StocksIndex.vue'
+import PurchasesIndex from '../views/purchases/PurchasesIndex.vue'
+import HRIndex from '../views/hr/HRIndex.vue'
+import SystemSettingsIndex from '../views/system/SystemSettingsIndex.vue'
 
 const routes = [
   {
@@ -46,6 +49,18 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/purchases',
+    name: 'purchases',
+    component: PurchasesIndex,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/hr',
+    name: 'hr',
+    component: HRIndex,
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/users',
     name: 'users',
     component: UsersIndex,
@@ -61,6 +76,12 @@ const routes = [
     path: '/dolibarr',
     name: 'dolibarr',
     component: DolibarrIndex,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/system',
+    name: 'system',
+    component: SystemSettingsIndex,
     meta: { requiresAuth: true }
   },
   {

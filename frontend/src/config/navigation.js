@@ -33,6 +33,18 @@ export const navigationItems = [
     badge: null
   },
   {
+    name: 'Gestion des Achats',
+    path: '/purchases',
+    icon: 'shopping-cart',
+    badge: 'Module 5 & 6'
+  },
+  {
+    name: 'Ressources Humaines',
+    path: '/hr',
+    icon: 'users',
+    badge: 'Module 8'
+  },
+  {
     name: 'Utilisateurs',
     path: '/users',
     icon: 'users',
@@ -49,5 +61,11 @@ export const navigationItems = [
     path: '/dolibarr',
     icon: 'refresh',
     badge: 'Sync'
+  },
+  {
+    name: 'Maintenance Système',
+    path: '/system',
+    icon: 'settings',
+    badge: 'Purge'
   }
 ]
