@@ -2,7 +2,8 @@ import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
-from app.api.deps import require_permission, get_current_user
+from app.api.deps import require_permission, get_current_user, get_db
+from sqlalchemy.orm import Session
 from app.models.users.user import User
 from app.schemas.products.product import (
     CategoryCreate,
@@ -15,6 +16,8 @@ from app.schemas.products.product import (
 )
 from app.services.products.product_service import (
     create_category,
+    update_category,
+    delete_category,
     create_product,
     delete_product,
     get_all_categories,
@@ -72,6 +75,46 @@ async def create_new_category(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Impossible de créer la catégorie"
+        ) from e
+
+
+@router.put(
+    "/categories/{category_id}",
+    response_model=CategoryResponse,
+    summary="Modifier une catégorie de produit"
+)
+async def update_existing_category(
+    category_id: int,
+    category_in: CategoryCreate,
+    current_user: User = Depends(require_permission("STOCK_UPDATE"))
+):
+    try:
+        return await update_category(category_id, category_in.name, category_in.description)
+    except Exception as e:
+        logger.error(f"Error updating category {category_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erreur lors de la modification de la catégorie"
+        ) from e
+
+
+@router.delete(
+    "/categories/{category_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Supprimer une catégorie de produit"
+)
+async def delete_existing_category(
+    category_id: int,
+    current_user: User = Depends(require_permission("STOCK_UPDATE"))
+):
+    try:
+        await delete_category(category_id)
+        return None
+    except Exception as e:
+        logger.error(f"Error deleting category {category_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erreur lors de la suppression de la catégorie"
         ) from e
 
 
@@ -219,10 +262,11 @@ async def delete_existing_product(
 )
 async def list_product_movements(
     product_id: int,
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("STOCK_READ"))
 ):
     try:
-        return await get_product_movements(product_id)
+        return await get_product_movements(product_id, db=db)
     except Exception as e:
         logger.error(f"Error fetching stock movements for product {product_id}: {e}")
         raise HTTPException(
@@ -240,6 +284,7 @@ async def list_product_movements(
 async def add_stock_movement(
     product_id: int,
     movement_in: StockMovementCreate,
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("STOCK_UPDATE"))
 ):
     try:
@@ -249,7 +294,8 @@ async def add_stock_movement(
             quantity=movement_in.quantity,
             reference_doc=movement_in.reference_doc,
             comment=movement_in.comment,
-            user_id=current_user.id_user
+            user_id=current_user.id_user,
+            db=db
         )
     except ValueError as val_err:
         raise HTTPException(

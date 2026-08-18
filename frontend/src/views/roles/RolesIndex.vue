@@ -229,7 +229,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import api from '../../services/api'
+import userService from '../../services/userService'
 import AppLayout from '../../layouts/AppLayout.vue'
 import PageHeader from '../../components/ui/PageHeader.vue'
 import AppCard from '../../components/ui/AppCard.vue'
@@ -279,8 +279,8 @@ async function fetchData() {
   pageError.value = ''
   try {
     const [rolesRes, permsRes] = await Promise.all([
-      api.get('/roles/').catch(() => ({ data: [] })),
-      api.get('/permissions/').catch(() => ({ data: [] }))
+      userService.getRoles().catch(() => ({ data: [] })),
+      userService.getPermissions().catch(() => ({ data: [] }))
     ])
     if (rolesRes.data && Array.isArray(rolesRes.data)) {
       roles.value = rolesRes.data
@@ -341,12 +341,10 @@ async function saveRole() {
     }
 
     if (editingRole.value) {
-      await api.put(`/roles/${editingRole.value.id_role}`, payload)
-      await api.post(`/roles/${editingRole.value.id_role}/permissions`, {
-        permission_ids: roleForm.value.selectedPermissionIds
-      })
+      await userService.updateRole(editingRole.value.id_role, payload)
+      await userService.assignPermissions(editingRole.value.id_role, roleForm.value.selectedPermissionIds)
     } else {
-      await api.post('/roles/', payload)
+      await userService.createRole(payload)
     }
 
     showRoleModal.value = false
@@ -367,7 +365,7 @@ async function executeDeleteRole() {
   if (!deletingRole.value) return
   deleting.value = true
   try {
-    await api.delete(`/roles/${deletingRole.value.id_role}`)
+    await userService.deleteRole(deletingRole.value.id_role)
     showDeleteModal.value = false
     await fetchData()
   } catch (error) {
@@ -415,9 +413,9 @@ async function savePermission() {
     }
 
     if (editingPermission.value) {
-      await api.put(`/permissions/${editingPermission.value.id_permission}`, payload)
+      await userService.updatePermission(editingPermission.value.id_permission, payload)
     } else {
-      await api.post('/permissions/', payload)
+      await userService.createPermission(payload)
     }
 
     showPermissionModal.value = false
@@ -438,7 +436,7 @@ async function executeDeletePermission() {
   if (!deletingPermission.value) return
   deletingPerm.value = true
   try {
-    await api.delete(`/permissions/${deletingPermission.value.id_permission}`)
+    await userService.deletePermission(deletingPermission.value.id_permission)
     showDeletePermModal.value = false
     await fetchData()
   } catch (error) {

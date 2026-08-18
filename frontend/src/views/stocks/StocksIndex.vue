@@ -5,6 +5,10 @@
       subtitle="Analyse globale, valorisation CUMP/FIFO, taux de rotation et traçabilité des lots (FEFO)"
     >
       <template #actions>
+        <AppButton variant="secondary" size="sm" @click="handleExportStocksExcel">
+          <AppIcon name="file-text" size="16" />
+          <span>Exporter Excel</span>
+        </AppButton>
         <AppButton variant="secondary" size="sm" @click="openCreateLotModal">
           <AppIcon name="box" size="16" />
           <span>Nouveau Lot / Série</span>
@@ -39,9 +43,9 @@
 
       <AppCard class="kpi-card">
         <div class="kpi-content">
-          <span class="kpi-title">Valeur Inventaire (CUMP)</span>
-          <span class="kpi-value">{{ formatCurrency(overview.total_stock_value_cump) }}</span>
-          <span class="kpi-sub text-muted">FIFO: {{ formatCurrency(overview.total_stock_value_fifo) }}</span>
+          <span class="kpi-title">Valeur Inventaire Totale</span>
+          <span class="kpi-value">{{ formatCurrency(overview.total_stock_value || 0) }}</span>
+          <span class="kpi-sub text-muted">Coût d'achat catalogue</span>
         </div>
         <div class="kpi-icon-wrapper kpi-icon--success">
           <AppIcon name="refresh" size="24" />
@@ -356,7 +360,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import api from '../../services/api'
+import stockService from '../../services/stockService'
+import { exportToExcel } from '../../utils/excelExport'
 import AppLayout from '../../layouts/AppLayout.vue'
 import PageHeader from '../../components/ui/PageHeader.vue'
 import AppCard from '../../components/ui/AppCard.vue'
@@ -466,8 +471,8 @@ async function loadData() {
   pageError.value = ''
   try {
     const [ovRes, prodRes] = await Promise.all([
-      api.get('/stocks/overview'),
-      api.get('/products/')
+      stockService.getOverview(),
+      stockService.getProducts()
     ])
     overview.value = ovRes.data || {}
     products.value = prodRes.data || []
@@ -482,7 +487,7 @@ async function fetchMovements() {
   loadingMovements.value = true
   try {
     const params = selectedMovementType.value ? { movement_type: selectedMovementType.value } : {}
-    const res = await api.get('/stocks/movements', { params })
+    const res = await stockService.getMovements(params)
     movements.value = res.data || []
   } catch (e) {
     // Handling
@@ -494,7 +499,7 @@ async function fetchMovements() {
 async function fetchValuation() {
   loadingValuation.value = true
   try {
-    const res = await api.get('/stocks/valuation')
+    const res = await stockService.getValuation()
     valuationData.value = res.data || {}
   } catch (e) {
     // Handling
@@ -506,7 +511,7 @@ async function fetchValuation() {
 async function fetchRotation() {
   loadingRotation.value = true
   try {
-    const res = await api.get('/stocks/rotation')
+    const res = await stockService.getRotation()
     rotationData.value = res.data || []
   } catch (e) {
     // Handling
@@ -518,7 +523,7 @@ async function fetchRotation() {
 async function fetchLots() {
   loadingLots.value = true
   try {
-    const res = await api.get('/stocks/lots')
+    const res = await stockService.getLots()
     lots.value = res.data || []
   } catch (e) {
     // Handling
@@ -531,6 +536,45 @@ onMounted(async () => {
   await loadData()
   await Promise.all([fetchMovements(), fetchValuation(), fetchRotation(), fetchLots()])
 })
+
+function handleExportStocksExcel() {
+  if (activeTab.value === 'movements') {
+    const cols = [
+      { header: 'ID', key: 'id_movement' },
+      { header: 'Article', key: 'product_name' },
+      { header: 'Type Mouvement', key: 'movement_type' },
+      { header: 'Quantité', key: 'quantity' },
+      { header: 'Stock Avant', key: 'stock_before' },
+      { header: 'Stock Après', key: 'stock_after' },
+      { header: 'Référence Doc', key: 'reference_doc' },
+      { header: 'Date', key: 'created_at' }
+    ]
+    exportToExcel('mouvements_stock', 'Mouvements Stock', cols, movements.value)
+  } else if (activeTab.value === 'lots') {
+    const cols = [
+      { header: 'N° Lot', key: 'lot_number' },
+      { header: 'Article', key: 'product_name' },
+      { header: 'Qté Initiale', key: 'quantity_initial' },
+      { header: 'Qté Restante', key: 'quantity_remaining' },
+      { header: 'Fabrication', key: 'manufacturing_date' },
+      { header: 'Expiration (FEFO)', key: 'expiration_date' },
+      { header: 'Statut', key: 'status' }
+    ]
+    exportToExcel('lots_stock', 'Lots & Séries', cols, lots.value)
+  } else {
+    const cols = [
+      { header: 'Code SKU', key: 'sku' },
+      { header: 'Désignation', key: 'name' },
+      { header: 'Stock Physique', key: 'physical_stock' },
+      { header: 'Stock Réservé', key: 'reserved_stock' },
+      { header: 'Stock Disponible', key: 'available_stock' },
+      { header: 'PUMP (€)', key: 'cump' },
+      { header: 'Valeur Stock (€)', key: 'stock_value' },
+      { header: 'Statut Alert', key: 'alert_status' }
+    ]
+    exportToExcel('etat_stock_articles', 'État des Stocks', cols, products.value)
+  }
+}
 
 function formatCurrency(val) {
   if (val === undefined || val === null) return '0,00 €'
@@ -577,7 +621,7 @@ async function saveMovement() {
   }
 
   try {
-    await api.post('/stocks/movements', payload)
+    await stockService.createMovement(payload)
     pageSuccess.value = 'Mouvement de stock enregistré avec succès !'
     showMovementModal.value = false
     await loadData()
@@ -619,7 +663,7 @@ async function saveLot() {
   }
 
   try {
-    await api.post('/stocks/lots', payload)
+    await stockService.createLot(payload)
     pageSuccess.value = 'Nouveau lot / série enregistré avec succès !'
     showLotModal.value = false
     await fetchLots()

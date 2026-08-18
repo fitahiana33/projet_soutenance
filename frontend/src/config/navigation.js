@@ -1,71 +1,113 @@
 /**
- * Configuration centralisée des modules et sous-menus de Smart ERP
+ * Navigation centralisée de l'application Smart ERP pour Grande Entreprise
  */
 
-export const navigationItems = [
+export const navigationSections = [
   {
-    name: 'Tableau de bord',
-    path: '/dashboard',
-    icon: 'dashboard',
-    badge: null
-  },
-  {
-    name: 'Référentiel Produits',
-    icon: 'package',
-    badge: null,
-    children: [
+    header: "PILOTAGE & DECISION",
+    items: [
       {
-        name: 'Gestion des Produits',
-        path: '/products',
-        icon: 'package'
-      },
-      {
-        name: 'Catégories Produits',
-        path: '/products/categories',
-        icon: 'folder'
+        name: "Tableau de bord Direction",
+        path: "/dashboard",
+        icon: "dashboard",
+        badge: "KPI"
       }
     ]
   },
   {
-    name: 'Gestion des Stocks',
-    path: '/stocks',
-    icon: 'box',
-    badge: null
+    header: "ACHATS & LOGISTIQUE",
+    items: [
+      {
+        name: "Achats & Approvisionnements",
+        path: "/purchases",
+        icon: "shopping-cart",
+        badge: "Flux"
+      },
+      {
+        name: "Stocks & Inventaires",
+        path: "/stocks",
+        icon: "box",
+        badge: "CUMP/FIFO"
+      },
+      {
+        name: "Référentiel Produits",
+        icon: "package",
+        badge: null,
+        children: [
+          {
+            name: "Catalogue Produits",
+            path: "/products",
+            icon: "package"
+          },
+          {
+            name: "Catégories & Familles",
+            path: "/products/categories",
+            icon: "folder"
+          }
+        ]
+      }
+    ]
   },
   {
-    name: 'Gestion des Achats',
-    path: '/purchases',
-    icon: 'shopping-cart',
-    badge: 'Module 5 & 6'
+    header: "VENTES & CLIENTS",
+    items: [
+      {
+        name: "Ventes & Commandes Clients",
+        path: "/sales",
+        icon: "dollar-sign",
+        badge: "CA"
+      }
+    ]
   },
   {
-    name: 'Ressources Humaines',
-    path: '/hr',
-    icon: 'users',
-    badge: 'Module 8'
+    header: "RESSOURCES HUMAINES",
+    items: [
+      {
+        name: "Gestion RH & Paie",
+        path: "/hr",
+        icon: "users",
+        badge: "Social"
+      },
+      {
+        name: "Recrutement & Talents",
+        path: "/recruitment",
+        icon: "shield",
+        badge: "Matching"
+      }
+    ]
   },
   {
-    name: 'Utilisateurs',
-    path: '/users',
-    icon: 'users',
-    badge: 'Admin'
+    header: "GOUVERNANCE & AUDIT",
+    items: [
+      {
+        name: "Annuaire Utilisateurs",
+        path: "/users",
+        icon: "users",
+        badge: "RBAC"
+      },
+      {
+        name: "Habilitations & Rôles",
+        path: "/roles",
+        icon: "shield",
+        badge: null
+      },
+      {
+        name: "Journal d'Audit",
+        path: "/audit",
+        icon: "clock",
+        badge: "Sécurité"
+      }
+    ]
   },
   {
-    name: 'Rôles & Permissions',
-    path: '/roles',
-    icon: 'shield',
-    badge: null
-  },
-  {
-    name: 'Intégration Dolibarr',
-    path: '/dolibarr',
-    icon: 'refresh',
-    badge: 'Sync'
-  },
-  {
-    name: 'Maintenance Système',
-    path: '/system',
-    icon: 'settings',
-    badge: 'Purge'
+    header: "SYSTEME & PARAMETRAGE",
+    items: [
+      {
+        name: "Réglages & Paramètres System",
+        path: "/system",
+        icon: "settings",
+        badge: "Config"
+      }
+    ]
   }
 ]

@@ -5,12 +5,14 @@ import Login from '../views/auth/Login.vue'
 import Dashboard from '../views/Dashboard.vue'
 import UsersIndex from '../views/users/UsersIndex.vue'
 import RolesIndex from '../views/roles/RolesIndex.vue'
-import DolibarrIndex from '../views/dolibarr/DolibarrIndex.vue'
 import ProductsIndex from '../views/products/ProductsIndex.vue'
 import CategoriesIndex from '../views/products/CategoriesIndex.vue'
 import StocksIndex from '../views/stocks/StocksIndex.vue'
 import PurchasesIndex from '../views/purchases/PurchasesIndex.vue'
+import SalesIndex from '../views/sales/SalesIndex.vue'
 import HRIndex from '../views/hr/HRIndex.vue'
+import RecruitmentIndex from '../views/recruitment/RecruitmentIndex.vue'
+import AuditIndex from '../views/audit/AuditIndex.vue'
 import SystemSettingsIndex from '../views/system/SystemSettingsIndex.vue'
 
 const routes = [
@@ -55,9 +57,21 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/sales',
+    name: 'sales',
+    component: SalesIndex,
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/hr',
     name: 'hr',
     component: HRIndex,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/recruitment',
+    name: 'recruitment',
+    component: RecruitmentIndex,
     meta: { requiresAuth: true }
   },
   {
@@ -73,11 +87,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-    path: '/dolibarr',
-    name: 'dolibarr',
-    component: DolibarrIndex,
+    path: '/audit',
+    name: 'audit',
+    component: AuditIndex,
     meta: { requiresAuth: true }
   },
+
   {
     path: '/system',
     name: 'system',

@@ -31,8 +31,8 @@ class ProductBase(BaseModel):
     price_purchase: float = Field(default=0.0, ge=0.0)
     price_sell: float = Field(default=0.0, ge=0.0)
     status: str = Field(default="ACTIF", description="ACTIF, INACTIF, REAPPRO")
-    stock_quantity: int = Field(default=0, ge=0)
-    stock_reserved: int = Field(default=0, ge=0)
+    stock_quantity: int = Field(default=0)
+    stock_reserved: int = Field(default=0)
     stock_min: int = Field(default=5, ge=0)
     stock_max: int = Field(default=100, ge=0)
 

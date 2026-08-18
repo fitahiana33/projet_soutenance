@@ -208,7 +208,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import api from '../../services/api'
+import userService from '../../services/userService'
 import AppLayout from '../../layouts/AppLayout.vue'
 import PageHeader from '../../components/ui/PageHeader.vue'
 import AppCard from '../../components/ui/AppCard.vue'
@@ -258,8 +258,8 @@ async function fetchData() {
   pageError.value = ''
   try {
     const [usersRes, rolesRes] = await Promise.all([
-      api.get('/users/').catch(() => ({ data: [] })),
-      api.get('/roles/').catch(() => ({ data: [] }))
+      userService.getUsers().catch(() => ({ data: [] })),
+      userService.getRoles().catch(() => ({ data: [] }))
     ])
     if (usersRes.data && Array.isArray(usersRes.data)) {
       users.value = usersRes.data
@@ -315,9 +315,8 @@ function resetFilters() {
 
 async function toggleStatus(user) {
   try {
-    const targetStatus = !user.is_active
-    await api.patch(`/users/${user.id_user}/status?is_active=${targetStatus}`)
-    user.is_active = targetStatus
+    await userService.setUserStatus(user.id_user, !user.is_active)
+    user.is_active = !user.is_active
   } catch (err) {
     pageError.value = 'Erreur lors du changement de statut de l\'utilisateur.'
   }
@@ -374,13 +373,11 @@ async function saveUser() {
     }
 
     if (editingUser.value) {
-      await api.put(`/users/${editingUser.value.id_user}`, payload)
-      await api.post(`/users/${editingUser.value.id_user}/roles`, {
-        role_ids: form.value.selectedRoleIds
-      })
+      await userService.updateUser(editingUser.value.id_user, payload)
+      await userService.assignRoles(editingUser.value.id_user, form.value.selectedRoleIds)
     } else {
       payload.password = form.value.password || 'password123'
-      await api.post('/users/', payload)
+      await userService.createUser(payload)
     }
 
     showUserModal.value = false
@@ -402,7 +399,7 @@ async function executeDelete() {
   if (!deletingUser.value) return
   deleting.value = true
   try {
-    await api.delete(`/users/${deletingUser.value.id_user}`)
+    await userService.deleteUser(deletingUser.value.id_user)
     showDeleteModal.value = false
     await fetchData()
   } catch (error) {

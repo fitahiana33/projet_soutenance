@@ -20,6 +20,7 @@ class StockMovementResponse(BaseModel):
     product_ref: Optional[str] = None
     movement_type: str
     quantity: int
+    unit_price: Optional[float] = None
     reference_doc: Optional[str] = None
     comment: Optional[str] = None
     lot_number: Optional[str] = None
@@ -34,8 +35,7 @@ class StockOverviewResponse(BaseModel):
     total_reserved_stock: int
     low_stock_count: int
     out_of_stock_count: int
-    total_stock_value_cump: float
-    total_stock_value_fifo: float
+    total_stock_value: float
 
 
 class ProductValuationDetail(BaseModel):
@@ -50,11 +50,15 @@ class ProductValuationDetail(BaseModel):
     total_value_cump: float
     total_value_fifo: float
     variance_cump_fifo: float
+    entry_lots_count: Optional[int] = 0
 
 
 class StockValuationResponse(BaseModel):
     valuation_method: str
     total_inventory_value: float
+    total_value_cump: Optional[float] = None
+    total_value_fifo: Optional[float] = None
+    variance_total: Optional[float] = None
     products: List[ProductValuationDetail]
 
 
@@ -62,8 +66,10 @@ class StockRotationDetail(BaseModel):
     product_id: int
     reference: str
     label: str
+    current_stock: Optional[int] = 0
     average_stock: float
-    annual_sales_outflow: int
+    total_outflow: Optional[int] = 0
+    annualized_outflow: Optional[int] = 0
     turnover_rate: float
     average_retention_days: float
     rotation_speed: str  # RAPIDE, MOYENNE, LENTE, DORMANT

@@ -5,6 +5,10 @@
       subtitle="Catalogue centralisé, gestion des prix, références SKU, état et suivi des mouvements de stock"
     >
       <template #actions>
+        <AppButton variant="secondary" size="sm" @click="handleExportProductsExcel">
+          <AppIcon name="file-text" size="16" />
+          <span>Exporter Excel</span>
+        </AppButton>
         <AppButton variant="secondary" size="sm" @click="openCreateCategoryModal">
           <AppIcon name="plus" size="16" />
           <span>Nouvelle Catégorie</span>
@@ -424,7 +428,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import api from '../../services/api'
+import productService from '../../services/productService'
 import AppLayout from '../../layouts/AppLayout.vue'
 import PageHeader from '../../components/ui/PageHeader.vue'
 import AppCard from '../../components/ui/AppCard.vue'
@@ -435,6 +439,7 @@ import AppIcon from '../../components/ui/AppIcon.vue'
 import AppInput from '../../components/ui/AppInput.vue'
 import AppModal from '../../components/ui/AppModal.vue'
 import AppAlert from '../../components/ui/AppAlert.vue'
+import { exportToExcel } from '../../utils/excelExport'
 
 const products = ref([])
 const categories = ref([])
@@ -507,8 +512,8 @@ async function fetchData() {
   pageError.value = ''
   try {
     const [prodRes, catRes] = await Promise.all([
-      api.get('/products/').catch(() => ({ data: [] })),
-      api.get('/products/categories').catch(() => ({ data: [] }))
+      productService.getProducts().catch(() => ({ data: [] })),
+      productService.getCategories().catch(() => ({ data: [] }))
     ])
     if (prodRes.data && Array.isArray(prodRes.data)) {
       products.value = prodRes.data
@@ -526,6 +531,21 @@ async function fetchData() {
 onMounted(() => {
   fetchData()
 })
+
+function handleExportProductsExcel() {
+  const cols = [
+    { header: 'Référence SKU', key: 'reference' },
+    { header: 'Désignation', key: 'label' },
+    { header: 'Catégorie', key: 'category_name' },
+    { header: 'Prix d\'Achat (€)', key: 'price_purchase' },
+    { header: 'Prix de Vente (€)', key: 'price_sell' },
+    { header: 'Stock Physique', key: 'stock_quantity' },
+    { header: 'Stock Réservé', key: 'stock_reserved' },
+    { header: 'Stock Dispo', key: 'stock_available' },
+    { header: 'Statut', key: 'status' }
+  ]
+  exportToExcel('referentiel_produits', 'Catalogue Produits', cols, filteredProducts.value)
+}
 
 const filteredProducts = computed(() => {
   return products.value.filter((p) => {
@@ -644,10 +664,10 @@ async function saveProduct() {
 
   try {
     if (editingProduct.value) {
-      await api.put(`/products/${editingProduct.value.id_product}`, payload)
+      await productService.updateProduct(editingProduct.value.id_product, payload)
       pageSuccess.value = 'Produit mis à jour avec succès !'
     } else {
-      await api.post('/products/', payload)
+      await productService.createProduct(payload)
       pageSuccess.value = 'Nouveau produit créé avec succès !'
     }
 
@@ -678,7 +698,7 @@ async function saveCategory() {
   catModalError.value = ''
 
   try {
-    await api.post('/products/categories', categoryForm.value)
+    await productService.createCategory(categoryForm.value)
     pageSuccess.value = 'Catégorie créée avec succès !'
     showCategoryModal.value = false
     await fetchData()
@@ -696,7 +716,7 @@ async function openMovementsModal(item) {
   productMovements.value = []
   showMovementsModal.value = true
   try {
-    const res = await api.get(`/products/${item.id_product}/movements`)
+    const res = await productService.getProductMovements(item.id_product)
     if (res.data) productMovements.value = res.data
   } catch (error) {
     // Error handling
@@ -725,7 +745,7 @@ async function saveStockMovement() {
   mvtModalError.value = ''
 
   try {
-    await api.post(`/products/${targetProductForAddMvt.value.id_product}/movements`, movementForm.value)
+    await productService.createProductMovement(targetProductForAddMvt.value.id_product, movementForm.value)
     pageSuccess.value = 'Mouvement de stock enregistré avec succès !'
     showAddMovementModal.value = false
     await fetchData()

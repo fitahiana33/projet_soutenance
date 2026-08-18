@@ -1,6 +1,7 @@
 import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
+from sqlalchemy.orm import Session
 
 from app.services.dolibarr.client import dolibarr_client
 
@@ -46,6 +47,38 @@ async def create_category(name: str, description: Optional[str] = None) -> Dict[
     except Exception as e:
         logger.error(f"Échec création catégorie dans Dolibarr API: {e}", exc_info=True)
         raise RuntimeError(f"Erreur Dolibarr lors de la création de catégorie: {str(e)}") from e
+
+
+async def update_category(category_id: int, name: str, description: Optional[str] = None) -> Dict[str, Any]:
+    """Met à jour une catégorie dans Dolibarr via `PUT /categories/{id}`."""
+    payload = {
+        "label": name,
+        "description": description or "",
+        "type": "0"
+    }
+
+    try:
+        logger.info(f"Mise à jour catégorie #{category_id} dans Dolibarr: {name}")
+        await dolibarr_client.put(f"categories/{category_id}", payload)
+        return {
+            "id_category": category_id,
+            "name": name,
+            "description": description or ""
+        }
+    except Exception as e:
+        logger.error(f"Échec modification catégorie #{category_id} dans Dolibarr API: {e}", exc_info=True)
+        raise RuntimeError(f"Erreur Dolibarr lors de la modification de la catégorie: {str(e)}") from e
+
+
+async def delete_category(category_id: int) -> bool:
+    """Supprime une catégorie dans Dolibarr via `DELETE /categories/{id}`."""
+    try:
+        logger.info(f"Suppression catégorie #{category_id} dans Dolibarr")
+        await dolibarr_client.delete(f"categories/{category_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Échec suppression catégorie #{category_id} dans Dolibarr API: {e}", exc_info=True)
+        raise RuntimeError(f"Erreur Dolibarr lors de la suppression de la catégorie: {str(e)}") from e
 
 
 async def _get_or_create_default_warehouse() -> int:
@@ -235,12 +268,13 @@ async def delete_product(product_id: int) -> bool:
         raise RuntimeError(f"Erreur Dolibarr lors de la suppression du produit: {str(e)}") from e
 
 
-async def get_product_movements(product_id: int) -> List[Dict[str, Any]]:
-    """Récupère les mouvements de stock réels d'un produit depuis Dolibarr (`/stockmovements`)."""
+async def get_product_movements(product_id: int, db: Optional[Session] = None) -> List[Dict[str, Any]]:
+    """Récupère les mouvements de stock réels d'un produit depuis Dolibarr (`/stockmovements`) avec fallback PostgreSQL."""
+    movements_list = []
     try:
         mvts = await dolibarr_client.get("stockmovements", params={"product_id": product_id})
         if mvts and isinstance(mvts, list):
-            return [
+            movements_list = [
                 {
                     "id_movement": int(m.get("id", idx + 1)),
                     "product_id": product_id,
@@ -253,10 +287,30 @@ async def get_product_movements(product_id: int) -> List[Dict[str, Any]]:
                 }
                 for idx, m in enumerate(mvts)
             ]
-        return []
     except Exception as e:
         logger.warning(f"Récupération des mouvements depuis Dolibarr API: {e}")
-        return []
+
+    if not movements_list and db is not None:
+        try:
+            from app.models.products.product import StockMovement
+            db_mvts = db.query(StockMovement).filter(StockMovement.product_id == product_id).order_by(StockMovement.created_at.desc()).all()
+            movements_list = [
+                {
+                    "id_movement": m.id_movement,
+                    "product_id": m.product_id,
+                    "movement_type": m.movement_type,
+                    "quantity": m.quantity,
+                    "reference_doc": m.reference_doc,
+                    "comment": m.comment,
+                    "created_at": m.created_at.isoformat() if m.created_at else datetime.now(timezone.utc).isoformat(),
+                    "created_by_user_id": m.created_by_user_id or 1
+                }
+                for m in db_mvts
+            ]
+        except Exception as dbe:
+            logger.warning(f"Récupération des mouvements depuis DB PostgreSQL: {dbe}")
+
+    return movements_list
 
 
 async def record_stock_movement(
@@ -265,9 +319,10 @@ async def record_stock_movement(
     quantity: int,
     reference_doc: Optional[str] = None,
     comment: Optional[str] = None,
-    user_id: Optional[int] = None
+    user_id: Optional[int] = None,
+    db: Optional[Session] = None,
 ) -> Dict[str, Any]:
-    """Enregistre un mouvement de stock directement dans Dolibarr via `POST /stockmovements`."""
+    """Enregistre un mouvement de stock dans Dolibarr (`POST /stockmovements`) et PostgreSQL."""
     warehouse_id = await _get_or_create_default_warehouse()
     qty = abs(quantity) if movement_type.upper() in ["ENTREE", "AJUSTEMENT_PLUS"] else -abs(quantity)
     payload = {
@@ -277,6 +332,26 @@ async def record_stock_movement(
         "label": comment or f"Mouvement Smart ERP ({movement_type})",
         "inventorycode": reference_doc or "SMART-ERP"
     }
+
+    if db is not None:
+        try:
+            from app.models.products.product import StockMovement, Product
+            prod_exists = db.query(Product).filter(Product.id_product == product_id).first()
+            if prod_exists:
+                sm = StockMovement(
+                    product_id=product_id,
+                    movement_type=movement_type.upper(),
+                    quantity=qty,
+                    reference_doc=reference_doc,
+                    comment=comment,
+                    created_by_user_id=user_id,
+                    created_at=datetime.now(timezone.utc)
+                )
+                db.add(sm)
+                db.commit()
+        except Exception as dbe:
+            db.rollback()
+            logger.warning(f"Erreur enregistrement StockMovement DB PostgreSQL: {dbe}")
 
     try:
         logger.info(f"Enregistrement du mouvement de stock #{product_id} dans Dolibarr: qty={qty}, warehouse={warehouse_id}")

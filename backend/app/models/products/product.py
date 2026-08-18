@@ -45,7 +45,7 @@ class Product(Base):
     movements = relationship("StockMovement", back_populates="product", cascade="all, delete-orphan")
 
     @property
-    def stock_available((self)) -> int:
+    def stock_available(self) -> int:
         """Calcule le stock net réellement disponible (Physique - Réservé)."""
         return max(0, (self.stock_quantity or 0) - (self.stock_reserved or 0))
 
