@@ -62,3 +62,9 @@ class User(Base):
         secondary=user_roles,
         backref="users"
     )
+
+    @property
+    def username(self) -> str:
+        if self.first_name and self.name:
+            return f"{self.first_name} {self.name}".strip()
+        return self.email or self.name or "User"

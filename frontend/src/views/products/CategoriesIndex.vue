@@ -111,7 +111,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import api from '../../services/api'
+import productService from '../../services/productService'
 import AppLayout from '../../layouts/AppLayout.vue'
 import PageHeader from '../../components/ui/PageHeader.vue'
 import AppTable from '../../components/ui/AppTable.vue'
@@ -149,7 +149,7 @@ async function fetchCategories() {
   loading.value = true
   pageError.value = ''
   try {
-    const res = await api.get('/products/categories')
+    const res = await productService.getCategories()
     if (res.data && Array.isArray(res.data)) {
       categories.value = res.data
     }
@@ -188,8 +188,13 @@ async function saveCategory() {
   modalError.value = ''
 
   try {
-    await api.post('/products/categories', categoryForm.value)
-    pageSuccess.value = 'Catégorie enregistrée avec succès !'
+    if (editingCategory.value) {
+      await productService.updateCategory(editingCategory.value.id_category, categoryForm.value)
+      pageSuccess.value = 'Catégorie modifiée avec succès !'
+    } else {
+      await productService.createCategory(categoryForm.value)
+      pageSuccess.value = 'Catégorie créée avec succès !'
+    }
     showModal.value = false
     await fetchCategories()
   } catch (error) {
@@ -207,12 +212,14 @@ function confirmDeleteCategory(item) {
 async function executeDeleteCategory() {
   if (!deletingCategory.value) return
   deleting.value = true
+  pageError.value = ''
   try {
-    categories.value = categories.value.filter(c => c.id_category !== deletingCategory.value.id_category)
-    pageSuccess.value = 'Catégorie supprimée.'
+    await productService.deleteCategory(deletingCategory.value.id_category)
+    pageSuccess.value = 'Catégorie supprimée avec succès !'
     showDeleteModal.value = false
+    await fetchCategories()
   } catch (error) {
-    pageError.value = 'Erreur lors de la suppression.'
+    pageError.value = error?.response?.data?.detail || 'Erreur lors de la suppression de la catégorie.'
   } finally {
     deleting.value = false
   }

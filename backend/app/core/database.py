@@ -22,12 +22,28 @@ class Base(DeclarativeBase):
 
 
 def init_db():
-    """Importe les modèles d'authentification et sécurité PostgreSQL puis crée les tables manquantes."""
+    """Importe les modèles PostgreSQL puis crée les tables manquantes."""
     from app.models.users.user import User  # noqa: F401
     from app.models.roles.role import Role  # noqa: F401
     from app.models.permissions.permission import Permission  # noqa: F401
     from app.models.authentication.user_role import user_roles  # noqa: F401
     from app.models.authentication.role_permission import role_permissions  # noqa: F401
+    from app.models.audit.audit_log import AuditLog  # noqa: F401
+    from app.models.hr.holiday import PublicHoliday  # noqa: F401
+    from app.models.hr.employee import (  # noqa: F401
+        Employee, TimeOffRequest, PayrollEntry, PerformanceEvaluation
+    )
+    from app.models.hr.recruitment import JobOffer, Candidate  # noqa: F401
+    from app.models.system.parameter import SystemParameter  # noqa: F401
+    from app.models.system.notification import Notification  # noqa: F401
+    from app.models.products.product import Product, Category, StockMovement  # noqa: F401
+    from app.models.stocks.lots import ProductLot  # noqa: F401
+    from app.models.purchases.purchase import (  # noqa: F401
+        Supplier, PurchaseRequisition, PurchaseOrder, GoodsReceipt, SupplierInvoice
+    )
+    from app.models.sales.sales import (  # noqa: F401
+        Customer, SalesQuote, SalesOrder, Delivery, SalesInvoice
+    )
 
     Base.metadata.create_all(bind=engine)
 

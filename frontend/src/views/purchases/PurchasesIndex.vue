@@ -5,6 +5,10 @@
       subtitle="Workflow complet d'approvisionnement (Demande → Commande → Réception → Facturation) et Scoring IA Fournisseurs"
     >
       <template #actions>
+        <AppButton variant="secondary" size="sm" @click="handleExportPurchasesExcel">
+          <AppIcon name="file-text" size="16" />
+          <span>Exporter Excel</span>
+        </AppButton>
         <AppButton variant="secondary" size="sm" @click="openCreateSupplierModal">
           <AppIcon name="users" size="16" />
           <span>Nouveau Fournisseur</span>
@@ -605,7 +609,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import api from '../../services/api'
+import purchaseService from '../../services/purchaseService'
+import productService from '../../services/productService'
+import { exportToExcel } from '../../utils/excelExport'
 import AppLayout from '../../layouts/AppLayout.vue'
 import PageHeader from '../../components/ui/PageHeader.vue'
 import AppCard from '../../components/ui/AppCard.vue'
@@ -722,14 +728,14 @@ async function loadAllData() {
   pageError.value = ''
   try {
     const [ovRes, supRes, reqRes, ordRes, recRes, invRes, prodRes, anaRes] = await Promise.all([
-      api.get('/purchases/overview'),
-      api.get('/purchases/suppliers'),
-      api.get('/purchases/requisitions'),
-      api.get('/purchases/orders'),
-      api.get('/purchases/receipts'),
-      api.get('/purchases/invoices'),
-      api.get('/products/'),
-      api.get('/purchases/analysis')
+      purchaseService.getOverview(),
+      purchaseService.getSuppliers(),
+      purchaseService.getRequisitions(),
+      purchaseService.getOrders(),
+      purchaseService.getReceipts(),
+      purchaseService.getInvoices(),
+      productService.getProducts(),
+      purchaseService.getAnalysis()
     ])
 
     overview.value = ovRes.data || {}
@@ -751,7 +757,7 @@ async function loadAllData() {
 
 async function fetchAiRecommendation() {
   try {
-    const res = await api.post('/purchases/analysis/recommend', {
+    const res = await purchaseService.getAiRecommendations({
       priority_criterion: selectedStrategy.value
     })
     aiRecommendation.value = res.data || {}
@@ -845,7 +851,7 @@ async function saveSupplier() {
   if (!supForm.value.name) return
   saving.value = true
   try {
-    await api.post('/purchases/suppliers', supForm.value)
+    await purchaseService.createSupplier(supForm.value)
     pageSuccess.value = 'Nouveau fournisseur enregistré avec succès !'
     showSupplierModal.value = false
     await loadAllData()
@@ -860,7 +866,7 @@ async function saveRequisition() {
   if (!reqForm.value.product_id || !reqForm.value.quantity) return
   saving.value = true
   try {
-    await api.post('/purchases/requisitions', reqForm.value)
+    await purchaseService.createRequisition(reqForm.value)
     pageSuccess.value = 'Demande d\'achat soumise au workflow !'
     showRequisitionModal.value = false
     await loadAllData()
@@ -874,7 +880,7 @@ async function saveRequisition() {
 async function handleValidateRequisition(reqId, action) {
   loading.value = true
   try {
-    await api.put(`/purchases/requisitions/${reqId}/validate`, {
+    await purchaseService.validateRequisition(reqId, {
       action: action,
       comment: action === 'VALIDER' ? 'Validation effectuée' : 'Rejeté par le responsable'
     })
@@ -891,7 +897,7 @@ async function saveOrder() {
   if (!orderForm.value.supplier_id || !orderForm.value.product_id) return
   saving.value = true
   try {
-    await api.post('/purchases/orders', orderForm.value)
+    await purchaseService.createOrder(orderForm.value)
     pageSuccess.value = 'Commande d\'achat validée et envoyée au fournisseur !'
     showOrderModal.value = false
     await loadAllData()
@@ -906,7 +912,7 @@ async function saveReceipt() {
   if (!receiptForm.value.order_id || !receiptForm.value.quantity_received) return
   saving.value = true
   try {
-    await api.post('/purchases/orders/receipt', receiptForm.value)
+    await purchaseService.createReceipt(receiptForm.value)
     pageSuccess.value = 'Réception & Contrôle qualité enregistrés. Stock mis à jour !'
     showReceiptModal.value = false
     await loadAllData()
@@ -921,7 +927,7 @@ async function saveInvoice() {
   if (!invForm.value.order_id || !invForm.value.invoice_number) return
   saving.value = true
   try {
-    await api.post('/purchases/invoices', invForm.value)
+    await purchaseService.createInvoice(invForm.value)
     pageSuccess.value = 'Facture fournisseur comptabilisée avec succès !'
     showInvoiceModal.value = false
     await loadAllData()
@@ -929,6 +935,61 @@ async function saveInvoice() {
     pageError.value = 'Erreur lors de l\'enregistrement de la facture.'
   } finally {
     saving.value = false
+  }
+}
+
+function handleExportPurchasesExcel() {
+  if (activeTab.value === 'suppliers') {
+    const cols = [
+      { header: 'Raison Sociale', key: 'name' },
+      { header: 'Catégorie', key: 'category' },
+      { header: 'Email', key: 'email' },
+      { header: 'Téléphone', key: 'phone' },
+      { header: 'Score Fiabilité (%)', key: 'reliability_score' },
+      { header: 'Délai Liv. (jours)', key: 'average_delivery_delay_days' },
+      { header: 'Taux Qualité (%)', key: 'quality_rating_percent' },
+      { header: 'Statut', key: 'status' }
+    ]
+    exportToExcel('fournisseurs_achats', 'Fournisseurs', cols, suppliers.value)
+  } else if (activeTab.value === 'requisitions') {
+    const cols = [
+      { header: 'Réf. DA', key: 'requisition_ref' },
+      { header: 'Demandeur', key: 'requested_by' },
+      { header: 'Article', key: 'product_name' },
+      { header: 'Qté', key: 'quantity' },
+      { header: 'Priorité', key: 'priority' },
+      { header: 'Statut', key: 'status' },
+      { header: 'Date', key: 'created_at' }
+    ]
+    exportToExcel('demandes_achats', 'Demandes d\'Achat', cols, requisitions.value)
+  } else if (activeTab.value === 'orders') {
+    const cols = [
+      { header: 'N° Commande', key: 'order_number' },
+      { header: 'Fournisseur', key: 'supplier_name' },
+      { header: 'Montant HT (€)', key: 'total_amount_ht' },
+      { header: 'Montant TTC (€)', key: 'total_amount_ttc' },
+      { header: 'Livraison Prévue', key: 'expected_delivery_date' },
+      { header: 'Statut', key: 'status' }
+    ]
+    exportToExcel('commandes_achats', 'Commandes d\'Achat', cols, orders.value)
+  } else if (activeTab.value === 'receipts') {
+    const cols = [
+      { header: 'N° Bon Réception', key: 'receipt_number' },
+      { header: 'Commande Réf', key: 'order_id' },
+      { header: 'Qté Reçue', key: 'quantity_received' },
+      { header: 'Conforme ?', key: 'quality_approved', formatter: (val) => val ? 'Oui' : 'Non' },
+      { header: 'Date Réception', key: 'received_date' }
+    ]
+    exportToExcel('receptions_achats', 'Réceptions & Contrôles', cols, receipts.value)
+  } else {
+    const cols = [
+      { header: 'N° Facture', key: 'invoice_number' },
+      { header: 'Fournisseur', key: 'supplier_name' },
+      { header: 'Montant HT (€)', key: 'amount_ht' },
+      { header: 'Montant TTC (€)', key: 'amount_ttc' },
+      { header: 'Paiement', key: 'payment_status' }
+    ]
+    exportToExcel('factures_achats', 'Factures Fournisseurs', cols, invoices.value)
   }
 }
 

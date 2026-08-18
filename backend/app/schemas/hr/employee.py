@@ -59,12 +59,21 @@ class TimeOffValidationRequest(BaseModel):
 class PayrollCreate(BaseModel):
     employee_id: int
     period: str = Field(..., description="Période de paie (ex: 2026-08)")
-    gross_salary: float = Field(..., ge=0.0)
-    bonus: float = Field(0.0, ge=0.0)
-    overtime_hours: float = Field(0.0, ge=0.0)
-    overtime_amount: float = Field(0.0, ge=0.0)
-    deductions: float = Field(0.0, ge=0.0)
-    employer_charges: float = Field(0.0, ge=0.0)
+    gross_salary: float = Field(..., ge=0.0, description="Salaire de base mensuel brut")
+    category: Optional[str] = Field("Employé", description="Catégorie (Ouvrier, Employé, TAM 4A, TAM 5B, Cadre HC, Dirigeant)")
+    bonus: float = Field(0.0, ge=0.0, description="Primes diverses")
+    bonus_seniority: float = Field(0.0, ge=0.0, description="Prime d'ancienneté")
+    bonus_performance: float = Field(0.0, ge=0.0, description="Prime de rendement")
+    overtime_hours: float = Field(0.0, ge=0.0, description="Heures supplémentaires totales")
+    overtime_30_hours: float = Field(0.0, ge=0.0, description="Heures sup majorées de 30%")
+    overtime_40_hours: float = Field(0.0, ge=0.0, description="Heures sup majorées de 40%")
+    overtime_50_hours: float = Field(0.0, ge=0.0, description="Heures sup majorées de 50%")
+    overtime_100_hours: float = Field(0.0, ge=0.0, description="Heures sup majorées de 100%")
+    night_hours: float = Field(0.0, ge=0.0, description="Heures de nuit")
+    children_count: int = Field(0, ge=0, description="Nombre d'enfants à charge pour déduction IRSA")
+    deduction_absences: float = Field(0.0, ge=0.0, description="Déductions pour absences")
+    advances: float = Field(0.0, ge=0.0, description="Avances sur salaire")
+    deductions: float = Field(0.0, ge=0.0, description="Autres retenues")
 
 
 class PayrollResponse(BaseModel):
@@ -74,13 +83,28 @@ class PayrollResponse(BaseModel):
     department: str
     job_title: str
     period: str
+    # Brut
     gross_salary: float
+    base_salary: Optional[float] = None
     bonus: float
     overtime_hours: float
     overtime_amount: float
+    # Cotisations salariales
+    cnaps_employee: Optional[float] = None
+    ostie_employee: Optional[float] = None
+    total_social_contributions: Optional[float] = None
+    # Impôt
+    irsa: Optional[float] = None
+    # Autres
+    other_deductions: Optional[float] = None
     deductions: float
     net_salary: float
+    # Charges patronales
+    cnaps_employer: Optional[float] = None
+    ostie_employer: Optional[float] = None
     employer_charges: float
+    total_cost: Optional[float] = None
+    # Statut
     payment_status: str  # ECHU, PAYE, EN_TRAITEMENT
     created_at: str
 

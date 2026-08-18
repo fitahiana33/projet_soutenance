@@ -23,8 +23,11 @@ async def get_stock_overview() -> Dict[str, Any]:
     low_stock = sum(1 for p in prods if 0 < p.get("stock_quantity", 0) <= p.get("stock_min", 5))
     out_of_stock = sum(1 for p in prods if p.get("stock_quantity", 0) == 0)
 
-    val_cump = sum(p.get("stock_quantity", 0) * (p.get("price_purchase", 0) or 1.0) for p in prods)
-    val_fifo = sum(p.get("stock_quantity", 0) * ((p.get("price_purchase", 0) or 1.0) * 1.02) for p in prods)
+    # Valorisation rapide basée sur le coût d'achat unitaire (prix catalogue)
+    val_cost = sum(
+        p.get("stock_quantity", 0) * float(p.get("price_purchase", 0) or 0)
+        for p in prods
+    )
 
     return {
         "total_products": total_products,
@@ -33,8 +36,7 @@ async def get_stock_overview() -> Dict[str, Any]:
         "total_reserved_stock": total_reserved,
         "low_stock_count": low_stock,
         "out_of_stock_count": out_of_stock,
-        "total_stock_value_cump": round(val_cump, 2),
-        "total_stock_value_fifo": round(val_fifo, 2)
+        "total_stock_value": round(val_cost, 2)
     }
 
 
@@ -61,6 +63,19 @@ async def get_stock_movements(
                 
                 prod = prod_map.get(pid, {})
                 
+                # Essayer de récupérer le prix unitaire du mouvement
+                unit_price = float(m.get("price", 0) or m.get("unitprice", 0) or 0)
+                if unit_price == 0:
+                    unit_price = float(prod.get("price_purchase", 0) or 0)
+
+                datem = m.get("datem") or m.get("date_creation")
+                if isinstance(datem, (int, float)) or (isinstance(datem, str) and datem.isdigit()):
+                    created_at_str = datetime.fromtimestamp(int(datem), tz=timezone.utc).isoformat()
+                elif isinstance(datem, str) and datem:
+                    created_at_str = datem
+                else:
+                    created_at_str = datetime.now(timezone.utc).isoformat()
+
                 item = {
                     "id_movement": int(m.get("id", idx + 1)),
                     "product_id": pid,
@@ -68,11 +83,12 @@ async def get_stock_movements(
                     "product_ref": prod.get("reference", f"REF-{pid}"),
                     "movement_type": m_type,
                     "quantity": abs(qty),
+                    "unit_price": unit_price,
                     "reference_doc": m.get("inventorycode") or m.get("label", ""),
                     "comment": m.get("comment", ""),
                     "lot_number": m.get("batch") or None,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "created_by_user_id": 1
+                    "created_at": created_at_str,
+                    "created_by_user_id": int(m.get("fk_user_author", 1) or 1)
                 }
                 
                 if movement_type and item["movement_type"] != movement_type.upper():
@@ -84,85 +100,216 @@ async def get_stock_movements(
         return []
 
 
+async def _get_product_entry_history(product_id: int) -> List[Dict[str, Any]]:
+    """
+    Récupère l'historique des entrées pour un produit spécifique.
+    Utilisé pour les calculs CUMP et FIFO.
+    """
+    all_movements = await get_stock_movements(product_id=product_id)
+    entries = [m for m in all_movements if m["movement_type"] == "ENTREE"]
+    # Tri chronologique
+    entries.sort(key=lambda x: x.get("created_at", ""))
+    return entries
+
+
+async def _get_product_exit_total(product_id: int) -> int:
+    """Calcule le total des quantités sorties pour un produit."""
+    all_movements = await get_stock_movements(product_id=product_id)
+    return sum(m["quantity"] for m in all_movements if m["movement_type"] == "SORTIE")
+
+
+def _calculate_cump(entries: List[Dict[str, Any]], current_qty: int, fallback_price: float) -> float:
+    """
+    Calcul CUMP (Coût Unitaire Moyen Pondéré).
+    CUMP = Σ(coût unitaire × quantité reçue) / Σ(quantité reçue)
+    
+    Si pas d'historique d'entrées, utilise le prix d'achat catalogue comme fallback.
+    """
+    if not entries:
+        return fallback_price
+
+    total_amount = 0.0
+    total_qty = 0
+
+    for entry in entries:
+        qty = entry.get("quantity", 0)
+        price = entry.get("unit_price", 0)
+        if price <= 0:
+            price = fallback_price
+        total_amount += qty * price
+        total_qty += qty
+
+    if total_qty > 0:
+        return round(total_amount / total_qty, 2)
+    return fallback_price
+
+
+def _calculate_fifo_valuation(
+    entries: List[Dict[str, Any]],
+    total_exits: int,
+    current_qty: int,
+    fallback_price: float
+) -> float:
+    """
+    Calcul FIFO (First In, First Out).
+    Les articles sortent dans l'ordre d'arrivée.
+    On simule les sorties sur les lots les plus anciens, le reste donne la valorisation.
+    """
+    if not entries:
+        return round(current_qty * fallback_price, 2)
+
+    # Copier les lots d'entrée
+    lots = [{"qty": e["quantity"], "price": e.get("unit_price", 0) or fallback_price} for e in entries]
+
+    # Simuler les sorties FIFO
+    remaining_exits = total_exits
+    for lot in lots:
+        if remaining_exits <= 0:
+            break
+        consumed = min(lot["qty"], remaining_exits)
+        lot["qty"] -= consumed
+        remaining_exits -= consumed
+
+    # Valorisation du stock restant
+    total_value = 0.0
+    for lot in lots:
+        if lot["qty"] > 0:
+            total_value += lot["qty"] * lot["price"]
+
+    return round(total_value, 2)
+
+
 async def get_stock_valuation(method: str = "ALL") -> Dict[str, Any]:
     """
-    Calcule la valorisation du stock selon les méthodes :
-    - CUMP (Coût Unitaire Moyen Pondéré)
-    - FIFO (First In First Out)
-    - Comparaison des méthodes.
+    Calcule la valorisation du stock selon les méthodes correctes :
+    - CUMP : Coût Unitaire Moyen Pondéré = Σ(montant entrées) / Σ(quantité entrées)
+    - FIFO : First In First Out — les sorties consomment les lots les plus anciens
+    - Comparaison des deux méthodes pour analyse financière
     """
     prods = await get_all_products()
     details = []
     
-    total_val = 0.0
+    total_val_cump = 0.0
+    total_val_fifo = 0.0
+
     for p in prods:
         qty = p.get("stock_quantity", 0)
-        cost = float(p.get("price_purchase", 0.0) or 0.0)
-        
-        cump = round(cost * 1.05 if cost > 0 else 10.0, 2)
-        fifo = round(cost * 1.08 if cost > 0 else 11.0, 2)
-        
-        tot_cost = round(qty * cost, 2)
-        tot_cump = round(qty * cump, 2)
-        tot_fifo = round(qty * fifo, 2)
+        catalog_price = float(p.get("price_purchase", 0.0) or 0.0)
+        pid = p["id_product"]
+
+        # Récupérer l'historique des entrées depuis Dolibarr
+        entries = await _get_product_entry_history(pid)
+        total_exits = await _get_product_exit_total(pid)
+
+        # Calcul CUMP
+        cump_unit = _calculate_cump(entries, qty, catalog_price)
+        tot_cump = round(qty * cump_unit, 2)
+
+        # Calcul FIFO
+        tot_fifo = _calculate_fifo_valuation(entries, total_exits, qty, catalog_price)
+        fifo_unit = round(tot_fifo / qty, 2) if qty > 0 else catalog_price
+
+        # Écart entre les deux méthodes
         variance = round(tot_fifo - tot_cump, 2)
-        
-        if method.upper() == "CUMP":
-            total_val += tot_cump
-        elif method.upper() == "FIFO":
-            total_val += tot_fifo
-        else:
-            total_val += tot_cump
+
+        total_val_cump += tot_cump
+        total_val_fifo += tot_fifo
             
         details.append({
-            "product_id": p["id_product"],
+            "product_id": pid,
             "reference": p["reference"],
             "label": p["label"],
             "stock_quantity": qty,
-            "unit_cost_price": cost,
-            "cump_unit_price": cump,
-            "fifo_unit_price": fifo,
-            "total_value_cost_price": tot_cost,
+            "unit_cost_price": catalog_price,
+            "cump_unit_price": cump_unit,
+            "fifo_unit_price": fifo_unit,
+            "total_value_cost_price": round(qty * catalog_price, 2),
             "total_value_cump": tot_cump,
             "total_value_fifo": tot_fifo,
-            "variance_cump_fifo": variance
+            "variance_cump_fifo": variance,
+            "entry_lots_count": len(entries)
         })
+
+    selected_total = total_val_cump
+    if method.upper() == "FIFO":
+        selected_total = total_val_fifo
 
     return {
         "valuation_method": method.upper(),
-        "total_inventory_value": round(total_val, 2),
+        "total_inventory_value": round(selected_total, 2),
+        "total_value_cump": round(total_val_cump, 2),
+        "total_value_fifo": round(total_val_fifo, 2),
+        "variance_total": round(total_val_fifo - total_val_cump, 2),
         "products": details
     }
 
 
 async def get_stock_rotation() -> List[Dict[str, Any]]:
-    """Calcule le Taux de Rotation des stocks et la Durée Moyenne de Rétention (Jours)."""
+    """
+    Calcule le Taux de Rotation des stocks et la Durée Moyenne de Rétention.
+    
+    Formule correcte :
+    - Taux de Rotation = Consommation annualisée / Stock moyen
+    - Durée de Rétention = 365 / Taux de Rotation
+    
+    La consommation est basée sur les mouvements de sortie réels de Dolibarr.
+    """
     prods = await get_all_products()
     rotation_data = []
 
     for p in prods:
         qty = p.get("stock_quantity", 0)
-        avg_stock = max(1.0, qty * 0.8)
-        annual_outflow = qty * 4 + 12
-        
-        rate = round(annual_outflow / avg_stock, 2)
-        retention_days = round(365 / rate, 1) if rate > 0 else 365.0
-        
+        pid = p["id_product"]
+
+        # Récupérer les sorties réelles depuis Dolibarr
+        all_movements = await get_stock_movements(product_id=pid)
+        exits = [m for m in all_movements if m["movement_type"] == "SORTIE"]
+        entries = [m for m in all_movements if m["movement_type"] == "ENTREE"]
+
+        # Total des sorties réelles
+        total_outflow = sum(m["quantity"] for m in exits)
+        total_inflow = sum(m["quantity"] for m in entries)
+
+        # Stock moyen estimé = (Stock initial estimé + Stock actuel) / 2
+        # Stock initial estimé ≈ Stock actuel + Sorties - Entrées
+        estimated_initial_stock = qty + total_outflow - total_inflow
+        avg_stock = max(1.0, (abs(estimated_initial_stock) + qty) / 2)
+
+        # Annualisation : si les mouvements couvrent moins d'un an,
+        # on extrapole proportionnellement
+        # Par défaut on considère les mouvements comme représentant ~6 mois de données
+        annualized_outflow = total_outflow * 2 if total_outflow > 0 else 0
+
+        # Taux de rotation
+        if annualized_outflow > 0 and avg_stock > 0:
+            rate = round(annualized_outflow / avg_stock, 2)
+        elif qty > 0:
+            # Fallback : produit en stock mais sans mouvement de sortie connu
+            rate = 0.0
+        else:
+            rate = 0.0
+
+        # Durée de rétention en jours
+        retention_days = round(365 / rate, 1) if rate > 0 else 999.0
+
+        # Classification de la vitesse de rotation
         if rate >= 6.0:
             speed = "RAPIDE"
         elif rate >= 2.0:
             speed = "MOYENNE"
-        elif rate > 0.5:
+        elif rate > 0:
             speed = "LENTE"
         else:
             speed = "DORMANT"
 
         rotation_data.append({
-            "product_id": p["id_product"],
+            "product_id": pid,
             "reference": p["reference"],
             "label": p["label"],
+            "current_stock": qty,
             "average_stock": round(avg_stock, 1),
-            "annual_sales_outflow": annual_outflow,
+            "total_outflow": total_outflow,
+            "annualized_outflow": annualized_outflow,
             "turnover_rate": rate,
             "average_retention_days": retention_days,
             "rotation_speed": speed
