@@ -149,6 +149,16 @@
             :label="value"
           />
         </template>
+        <template #actions="{ item }">
+          <div class="actions-group">
+            <button type="button" class="icon-btn" title="Modifier le fournisseur" @click="openEditSupplierModal(item)">
+              <AppIcon name="edit" size="18" />
+            </button>
+            <button type="button" class="icon-btn icon-btn--danger" title="Supprimer ou désactiver le fournisseur" @click="confirmDeleteSupplier(item)">
+              <AppIcon name="trash" size="18" />
+            </button>
+          </div>
+        </template>
       </AppTable>
     </div>
 
@@ -176,6 +186,9 @@
         </template>
 
         <template #actions="{ item }">
+          <button type="button" class="icon-btn" title="Voir les détails" @click="openPurchaseDetail(item, 'requisition')">
+            <AppIcon name="eye" size="18" />
+          </button>
           <div v-if="item.status === 'DEMANDE'" class="flex gap-2">
             <AppButton variant="success" size="xs" @click="handleValidateRequisition(item.id_requisition, 'VALIDER')">
               Valider
@@ -219,14 +232,17 @@
 
         <template #col-status="{ value }">
           <AppBadge
-            :variant="value === 'RECUE' ? 'success' : value === 'COMMANDEE' ? 'primary' : 'warning'"
+            :variant="value === 'RECUE' ? 'success' : value === 'PARTIELLEMENT_RECUE' ? 'warning' : value === 'COMMANDEE' ? 'primary' : 'danger'"
             :label="value"
           />
         </template>
 
         <template #actions="{ item }">
+          <button type="button" class="icon-btn" title="Voir les détails" @click="openPurchaseDetail(item, 'order')">
+            <AppIcon name="eye" size="18" />
+          </button>
           <AppButton
-            v-if="item.status === 'COMMANDEE'"
+            v-if="['COMMANDEE', 'PARTIELLEMENT_RECUE'].includes(item.status)"
             variant="warning"
             size="xs"
             @click="openReceiptModal(item)"
@@ -253,6 +269,11 @@
               :label="value"
             />
           </template>
+          <template #actions="{ item }">
+            <button type="button" class="icon-btn" title="Voir les détails" @click="openPurchaseDetail(item, 'receipt')">
+              <AppIcon name="eye" size="18" />
+            </button>
+          </template>
         </AppTable>
       </div>
     </div>
@@ -277,6 +298,10 @@
           <span class="sku-badge font-mono">{{ value }}</span>
         </template>
 
+        <template #col-invoice_date="{ value }">
+          <span class="text-muted text-xs">{{ value ? new Date(value).toLocaleDateString('fr-FR') : '—' }}</span>
+        </template>
+
         <template #col-amount_ttc="{ value }">
           <strong class="color-success">{{ formatCurrency(value) }}</strong>
         </template>
@@ -286,6 +311,11 @@
             :variant="value === 'PAYEE' ? 'success' : value === 'VALIDEE' ? 'info' : 'warning'"
             :label="value"
           />
+        </template>
+        <template #actions="{ item }">
+          <button type="button" class="icon-btn" title="Voir les détails" @click="openPurchaseDetail(item, 'invoice')">
+            <AppIcon name="eye" size="18" />
+          </button>
         </template>
       </AppTable>
     </div>
@@ -366,7 +396,7 @@
     </div>
 
     <!-- Modal Nouveau Fournisseur -->
-    <AppModal v-model="showSupplierModal" title="Nouveau Fournisseur" size="sm">
+    <AppModal v-model="showSupplierModal" :title="editingSupplier ? 'Modifier le fournisseur' : 'Nouveau Fournisseur'" size="sm">
       <form @submit.prevent="saveSupplier" class="modal-form">
         <AppInput
           id="sup-name"
@@ -404,11 +434,35 @@
           label="Adresse complète"
           placeholder="Adresse du siège..."
         />
+
+        <AppInput
+          id="sup-city"
+          v-model="supForm.city"
+          label="Ville"
+          placeholder="ex: Antananarivo"
+        />
+
+        <div class="form-group">
+          <label class="form-label" for="sup-status">Statut</label>
+          <select id="sup-status" v-model="supForm.status" class="form-select">
+            <option value="ACTIF">Actif</option>
+            <option value="INACTIF">Inactif</option>
+          </select>
+        </div>
       </form>
 
       <template #footer>
         <AppButton variant="ghost" @click="showSupplierModal = false">Annuler</AppButton>
-        <AppButton variant="primary" :loading="saving" @click="saveSupplier">Enregistrer Fournisseur</AppButton>
+        <AppButton variant="primary" :loading="saving" @click="saveSupplier">{{ editingSupplier ? 'Enregistrer les modifications' : 'Enregistrer Fournisseur' }}</AppButton>
+      </template>
+    </AppModal>
+
+    <AppModal v-model="showDeleteSupplierModal" title="Confirmer la suppression" size="sm">
+      <p>Voulez-vous supprimer le fournisseur <strong>{{ deletingSupplier?.name }}</strong> ?</p>
+      <p class="text-sm text-muted mt-2">Un fournisseur lié à une commande sera désactivé afin de conserver l'historique des achats.</p>
+      <template #footer>
+        <AppButton variant="ghost" @click="showDeleteSupplierModal = false">Annuler</AppButton>
+        <AppButton variant="danger" :loading="saving" @click="handleDeleteSupplier">Confirmer</AppButton>
       </template>
     </AppModal>
 
@@ -417,7 +471,8 @@
       <form @submit.prevent="saveRequisition" class="modal-form">
         <div class="form-group">
           <label class="form-label">Produit à réapprovisionner *</label>
-          <select v-model="reqForm.product_id" class="form-select" required>
+            <SearchableSelect v-model="reqForm.product_id" :options="products" value-key="id_product" label-key="label" :search-keys="['reference']" placeholder="Rechercher un produit..." required />
+            <select v-model="reqForm.product_id" class="form-select" style="display: none" aria-hidden="true" required>
             <option :value="null">Sélectionner un produit</option>
             <option v-for="p in products" :key="p.id_product" :value="p.id_product">
               {{ p.reference }} — {{ p.label }}
@@ -427,7 +482,8 @@
 
         <div class="form-group">
           <label class="form-label">Fournisseur suggéré</label>
-          <select v-model="reqForm.supplier_id" class="form-select">
+            <SearchableSelect v-model="reqForm.supplier_id" :options="suppliers" value-key="id_supplier" label-key="name" :search-keys="['code', 'email']" placeholder="Rechercher un fournisseur..." />
+            <select v-model="reqForm.supplier_id" class="form-select" style="display: none" aria-hidden="true">
             <option :value="null">Sélectionner un fournisseur</option>
             <option v-for="s in suppliers" :key="s.id_supplier" :value="s.id_supplier">
               {{ s.name }}
@@ -471,7 +527,8 @@
       <form @submit.prevent="saveOrder" class="modal-form">
         <div class="form-group">
           <label class="form-label">Fournisseur *</label>
-          <select v-model="orderForm.supplier_id" class="form-select" required>
+            <SearchableSelect v-model="orderForm.supplier_id" :options="suppliers" value-key="id_supplier" label-key="name" :search-keys="['code', 'email']" placeholder="Rechercher un fournisseur..." required />
+            <select v-model="orderForm.supplier_id" class="form-select" style="display: none" aria-hidden="true" required>
             <option :value="null">Sélectionner le fournisseur</option>
             <option v-for="s in suppliers" :key="s.id_supplier" :value="s.id_supplier">
               {{ s.name }}
@@ -481,7 +538,8 @@
 
         <div class="form-group">
           <label class="form-label">Produit *</label>
-          <select v-model="orderForm.product_id" class="form-select" required>
+            <SearchableSelect v-model="orderForm.product_id" :options="products" value-key="id_product" label-key="label" :search-keys="['reference']" placeholder="Rechercher un produit..." required />
+            <select v-model="orderForm.product_id" class="form-select" style="display: none" aria-hidden="true" required>
             <option :value="null">Sélectionner le produit</option>
             <option v-for="p in products" :key="p.id_product" :value="p.id_product">
               {{ p.reference }} — {{ p.label }}
@@ -527,6 +585,8 @@
           <div><strong>Commande :</strong> {{ selectedOrderToReceive?.reference }}</div>
           <div><strong>Produit :</strong> {{ selectedOrderToReceive?.product_label }}</div>
           <div><strong>Quantité commandée :</strong> {{ selectedOrderToReceive?.quantity }} unités</div>
+          <div><strong>Déjà reçue :</strong> {{ selectedOrderToReceive?.quantity_received || 0 }} unités</div>
+          <div><strong>Restante :</strong> {{ selectedOrderToReceive?.quantity_remaining ?? selectedOrderToReceive?.quantity }} unités</div>
         </div>
 
         <AppInput
@@ -534,6 +594,8 @@
           v-model.number="receiptForm.quantity_received"
           type="number"
           label="Quantité réellement reçue *"
+          :min="1"
+          :max="selectedOrderToReceive?.quantity_remaining || selectedOrderToReceive?.quantity"
           required
         />
 
@@ -565,7 +627,8 @@
       <form @submit.prevent="saveInvoice" class="modal-form">
         <div class="form-group">
           <label class="form-label">Commande associée *</label>
-          <select v-model="invForm.order_id" class="form-select" required @change="onOrderSelectForInvoice">
+          <SearchableSelect v-model="invForm.order_id" :options="orders" value-key="id_order" label-key="reference" :search-keys="['supplier_name', 'product_label']" placeholder="Rechercher une commande..." required @change="onOrderSelectForInvoice" />
+          <select v-model="invForm.order_id" class="form-select" style="display: none" aria-hidden="true" required @change="onOrderSelectForInvoice">
             <option :value="null">Sélectionner une commande reçue</option>
             <option v-for="o in orders" :key="o.id_order" :value="o.id_order">
               {{ o.reference }} — {{ o.supplier_name }} ({{ formatCurrency(o.total_amount) }})
@@ -597,6 +660,13 @@
           step="0.1"
           label="Taux de TVA (%)"
         />
+        <AppInput
+          id="inv-date"
+          v-model="invForm.invoice_date"
+          type="date"
+          label="Date de facture *"
+          required
+        />
       </form>
 
       <template #footer>
@@ -604,11 +674,28 @@
         <AppButton variant="primary" :loading="saving" @click="saveInvoice">Comptabiliser la Facture</AppButton>
       </template>
     </AppModal>
+
+    <AppModal v-model="showPurchaseDetailModal" :title="purchaseDetailTitle" size="md">
+      <div v-if="selectedPurchaseDetail" class="detail-grid text-sm">
+        <div><span class="text-muted">Référence</span><strong>{{ selectedPurchaseDetail.reference || selectedPurchaseDetail.invoice_number }}</strong></div>
+        <div><span class="text-muted">Date</span><strong>{{ formatDate(selectedPurchaseDetail.invoice_date || selectedPurchaseDetail.received_at || selectedPurchaseDetail.created_at || selectedPurchaseDetail.order_date) }}</strong></div>
+        <div><span class="text-muted">Fournisseur</span><strong>{{ selectedPurchaseDetail.supplier_name || '—' }}</strong></div>
+        <div><span class="text-muted">Produit</span><strong>{{ selectedPurchaseDetail.product_label || '—' }}</strong></div>
+        <div><span class="text-muted">Quantité commandée</span><strong>{{ selectedPurchaseDetail.quantity ?? '—' }}</strong></div>
+        <div><span class="text-muted">Quantité reçue</span><strong>{{ selectedPurchaseDetail.quantity_received ?? '—' }}</strong></div>
+        <div><span class="text-muted">Montant HT</span><strong>{{ selectedPurchaseDetail.amount_ht !== undefined ? formatCurrency(selectedPurchaseDetail.amount_ht) : selectedPurchaseDetail.total_amount !== undefined ? formatCurrency(selectedPurchaseDetail.total_amount) : '—' }}</strong></div>
+        <div><span class="text-muted">TVA</span><strong>{{ selectedPurchaseDetail.amount_tva !== undefined ? formatCurrency(selectedPurchaseDetail.amount_tva) : selectedPurchaseDetail.vat_rate !== undefined ? selectedPurchaseDetail.vat_rate + ' %' : '—' }}</strong></div>
+        <div><span class="text-muted">Montant TTC</span><strong>{{ selectedPurchaseDetail.amount_ttc !== undefined ? formatCurrency(selectedPurchaseDetail.amount_ttc) : '—' }}</strong></div>
+        <div><span class="text-muted">Statut</span><strong>{{ selectedPurchaseDetail.status || selectedPurchaseDetail.quality_control_status || '—' }}</strong></div>
+        <div class="detail-grid__wide"><span class="text-muted">Remarques</span><strong>{{ selectedPurchaseDetail.quality_notes || selectedPurchaseDetail.notes || selectedPurchaseDetail.reason || '—' }}</strong></div>
+      </div>
+      <template #footer><AppButton variant="ghost" @click="showPurchaseDetailModal = false">Fermer</AppButton></template>
+    </AppModal>
   </AppLayout>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import purchaseService from '../../services/purchaseService'
 import productService from '../../services/productService'
 import { exportToExcel } from '../../utils/excelExport'
@@ -622,6 +709,8 @@ import AppIcon from '../../components/ui/AppIcon.vue'
 import AppInput from '../../components/ui/AppInput.vue'
 import AppModal from '../../components/ui/AppModal.vue'
 import AppAlert from '../../components/ui/AppAlert.vue'
+import SearchableSelect from '../../components/ui/SearchableSelect.vue'
+import { confirmAction } from '../../utils/actionConfirm'
 
 const activeTab = ref('suppliers')
 const overview = ref({})
@@ -642,11 +731,17 @@ const pageError = ref('')
 const pageSuccess = ref('')
 
 const showSupplierModal = ref(false)
+const showDeleteSupplierModal = ref(false)
 const showRequisitionModal = ref(false)
 const showOrderModal = ref(false)
 const showReceiptModal = ref(false)
 const showInvoiceModal = ref(false)
 const selectedOrderToReceive = ref(null)
+const showPurchaseDetailModal = ref(false)
+const selectedPurchaseDetail = ref(null)
+const purchaseDetailType = ref('')
+const editingSupplier = ref(null)
+const deletingSupplier = ref(null)
 
 const tabs = [
   { id: 'suppliers', label: 'Répertoire Fournisseurs', icon: 'users' },
@@ -657,18 +752,29 @@ const tabs = [
 ]
 
 const strategies = [
-  { id: 'BALANCED', label: '⚖️ Équilibré (Standard)' },
-  { id: 'PRIX', label: '💰 Priorité Prix (Moins Cher)' },
-  { id: 'DELAI', label: '⚡ Priorité Délai (Plus Rapide)' },
-  { id: 'QUALITE', label: '⭐ Priorité Qualité (Conformité)' },
-  { id: 'FIABILITE', label: '🛡️ Priorité Fiabilité (Zéro Retard)' }
+  { id: 'BALANCED', label: 'Équilibré (Standard)' },
+  { id: 'PRIX', label: 'Priorité Prix (Moins Cher)' },
+  { id: 'DELAI', label: 'Priorité Délai (Plus Rapide)' },
+  { id: 'QUALITE', label: 'Priorité Qualité (Conformité)' },
+  { id: 'FIABILITE', label: 'Priorité Fiabilité (Zéro Retard)' }
 ]
 
-const supForm = ref({ name: '', code: '', email: '', phone: '', address: '' })
+const supForm = ref({ name: '', code: '', email: '', phone: '', address: '', city: '', status: 'ACTIF' })
 const reqForm = ref({ product_id: null, supplier_id: null, quantity: 10, estimated_unit_price: 100, reason: '' })
 const orderForm = ref({ requisition_id: null, supplier_id: null, product_id: null, quantity: 10, unit_price: 100, expected_delivery_date: '' })
 const receiptForm = ref({ order_id: null, quantity_received: 10, quality_control_status: 'CONFORME', quality_notes: '' })
-const invForm = ref({ order_id: null, invoice_number: '', amount_ht: 0, vat_rate: 20.0 })
+const invForm = ref({ order_id: null, invoice_number: '', amount_ht: 0, vat_rate: 20.0, invoice_date: getTodayInput() })
+
+const purchaseDetailTitle = computed(() => {
+  const labels = { requisition: "Détails de la demande d'achat", order: "Détails de la commande d'achat", receipt: 'Détails de la réception', invoice: 'Détails de la facture fournisseur' }
+  return labels[purchaseDetailType.value] || 'Détails'
+})
+
+function getTodayInput() {
+  const now = new Date()
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+  return local.toISOString().slice(0, 10)
+}
 
 const columnsSuppliers = [
   { key: 'code', label: 'Code', width: '15%' },
@@ -709,6 +815,7 @@ const columnsInvoices = [
   { key: 'order_ref', label: 'N° Commande', width: '18%' },
   { key: 'supplier_name', label: 'Fournisseur', width: '27%' },
   { key: 'amount_ttc', label: 'Montant TTC', width: '20%' },
+  { key: 'invoice_date', label: 'Date', width: '13%' },
   { key: 'status', label: 'Statut', width: '15%' }
 ]
 
@@ -771,15 +878,46 @@ async function changeStrategy(stratId) {
   await fetchAiRecommendation()
 }
 
+function openPurchaseDetail(item, type) {
+  selectedPurchaseDetail.value = item
+  purchaseDetailType.value = type
+  showPurchaseDetailModal.value = true
+}
+
 function formatCurrency(val) {
   if (val === undefined || val === null) return '0,00 €'
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(val)
 }
 
+function formatDate(value) {
+  if (!value) return '—'
+  return new Date(value).toLocaleDateString('fr-FR')
+}
+
 // Modals Trigger
 function openCreateSupplierModal() {
-  supForm.value = { name: '', code: '', email: '', phone: '', address: '' }
+  editingSupplier.value = null
+  supForm.value = { name: '', code: '', email: '', phone: '', address: '', city: '', status: 'ACTIF' }
   showSupplierModal.value = true
+}
+
+function openEditSupplierModal(supplier) {
+  editingSupplier.value = supplier
+  supForm.value = {
+    name: supplier.name || '',
+    code: supplier.code || '',
+    email: supplier.email || '',
+    phone: supplier.phone || '',
+    address: supplier.address || '',
+    city: supplier.city || '',
+    status: supplier.status || 'ACTIF'
+  }
+  showSupplierModal.value = true
+}
+
+function confirmDeleteSupplier(supplier) {
+  deletingSupplier.value = supplier
+  showDeleteSupplierModal.value = true
 }
 
 function openCreateRequisitionModal() {
@@ -822,7 +960,7 @@ function openReceiptModal(orderItem) {
   selectedOrderToReceive.value = orderItem
   receiptForm.value = {
     order_id: orderItem.id_order,
-    quantity_received: orderItem.quantity,
+    quantity_received: orderItem.quantity_remaining || orderItem.quantity,
     quality_control_status: 'CONFORME',
     quality_notes: 'Vérification effectuée à la réception'
   }
@@ -834,7 +972,8 @@ function openCreateInvoiceModal() {
     order_id: orders.value.length ? orders.value[0].id_order : null,
     invoice_number: `FF-2026-${Math.floor(1000 + Math.random() * 9000)}`,
     amount_ht: orders.value.length ? orders.value[0].total_amount : 100.0,
-    vat_rate: 20.0
+    vat_rate: 20.0,
+    invoice_date: getTodayInput()
   }
   showInvoiceModal.value = true
 }
@@ -851,12 +990,35 @@ async function saveSupplier() {
   if (!supForm.value.name) return
   saving.value = true
   try {
-    await purchaseService.createSupplier(supForm.value)
-    pageSuccess.value = 'Nouveau fournisseur enregistré avec succès !'
+    if (editingSupplier.value) {
+      await purchaseService.updateSupplier(editingSupplier.value.id_supplier, supForm.value)
+      pageSuccess.value = 'Fournisseur modifié avec succès !'
+    } else {
+      await purchaseService.createSupplier(supForm.value)
+      pageSuccess.value = 'Nouveau fournisseur enregistré avec succès !'
+    }
     showSupplierModal.value = false
+    editingSupplier.value = null
     await loadAllData()
   } catch (e) {
-    pageError.value = 'Erreur lors de l\'enregistrement du fournisseur.'
+    pageError.value = e.response?.data?.detail || 'Erreur lors de l\'enregistrement du fournisseur.'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleDeleteSupplier() {
+  if (!deletingSupplier.value) return
+  saving.value = true
+  pageError.value = ''
+  try {
+    await purchaseService.deleteSupplier(deletingSupplier.value.id_supplier)
+    pageSuccess.value = 'Fournisseur supprimé ou désactivé avec succès !'
+    showDeleteSupplierModal.value = false
+    deletingSupplier.value = null
+    await loadAllData()
+  } catch (e) {
+    pageError.value = e.response?.data?.detail || 'Erreur lors de la suppression du fournisseur.'
   } finally {
     saving.value = false
   }
@@ -878,6 +1040,7 @@ async function saveRequisition() {
 }
 
 async function handleValidateRequisition(reqId, action) {
+  if (!confirmAction(`Confirmer l’action « ${action === 'VALIDER' ? 'valider' : 'rejeter'} » sur cette demande d’achat ?`)) return
   loading.value = true
   try {
     await purchaseService.validateRequisition(reqId, {
@@ -910,6 +1073,7 @@ async function saveOrder() {
 
 async function saveReceipt() {
   if (!receiptForm.value.order_id || !receiptForm.value.quantity_received) return
+  if (!confirmAction('Confirmer cette réception ? Le stock physique sera augmenté.')) return
   saving.value = true
   try {
     await purchaseService.createReceipt(receiptForm.value)
@@ -925,6 +1089,7 @@ async function saveReceipt() {
 
 async function saveInvoice() {
   if (!invForm.value.order_id || !invForm.value.invoice_number) return
+  if (!confirmAction('Confirmer la comptabilisation de cette facture fournisseur ?')) return
   saving.value = true
   try {
     await purchaseService.createInvoice(invForm.value)
@@ -997,3 +1162,30 @@ onMounted(() => {
   loadAllData()
 })
 </script>
+
+<style scoped>
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.detail-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-grid__wide {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 700px) {
+  .detail-grid { grid-template-columns: 1fr; }
+  .detail-grid__wide { grid-column: auto; }
+}
+</style>

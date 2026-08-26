@@ -9,6 +9,11 @@ class SupplierBase(BaseModel):
     email: Optional[str] = Field(None, description="Email de contact")
     phone: Optional[str] = Field(None, description="Numéro de téléphone")
     address: Optional[str] = Field(None, description="Adresse physique")
+    city: Optional[str] = None
+    country: Optional[str] = None
+    tax_number: Optional[str] = None
+    payment_terms_days: Optional[int] = Field(None, ge=0)
+    notes: Optional[str] = None
     status: str = Field("ACTIF", description="Statut (ACTIF, INACTIF)")
 
 
@@ -73,8 +78,16 @@ class PurchaseOrderResponse(BaseModel):
     product_label: str
     product_ref: str
     quantity: int
+    quantity_received: int = 0
+    quantity_remaining: int = 0
     unit_price: float
     total_amount: float
+    total_amount_ht: Optional[float] = None
+    amount_ht: Optional[float] = None
+    amount_tva: Optional[float] = None
+    amount_ttc: Optional[float] = None
+    total_amount_ttc: Optional[float] = None
+    vat_rate: float = 20.0
     status: str  # EN_ATTENTE, VALIDEE, COMMANDEE, PARTIELLEMENT_RECUE, RECUE, ANNULEE
     order_date: str
     expected_delivery_date: Optional[str] = None
@@ -93,6 +106,7 @@ class GoodsReceiptResponse(BaseModel):
     reference: str
     order_id: int
     order_ref: str
+    supplier_name: Optional[str] = None
     product_label: str
     quantity_received: int
     quality_control_status: str
@@ -116,6 +130,8 @@ class SupplierInvoiceResponse(BaseModel):
     supplier_name: str
     amount_ht: float
     vat_rate: float
+    amount_tva: float = 0.0
+    vat_amount: float = 0.0
     amount_ttc: float
     status: str  # BROUILLON, VALIDEE, PAYEE
     invoice_date: str

@@ -161,11 +161,28 @@ async def reset_all_business_data() -> Dict[str, Any]:
     deleted_doli_products = 0
     deleted_doli_categories = 0
     deleted_doli_thirdparties = 0
+    deleted_doli_stock_movements = 0
 
     # 1. Purge complète dans Dolibarr ERP via REST API
     try:
         prods = await dolibarr_client.get("products")
         if prods and isinstance(prods, list):
+            # Dolibarr exposes movements per product on some API versions.
+            for p in prods:
+                pid = p.get("id")
+                try:
+                    stockmvts = await dolibarr_client.get("stockmovements", params={"product_id": pid})
+                    for sm in stockmvts or []:
+                        smid = sm.get("id") if isinstance(sm, dict) else sm
+                        if smid is not None:
+                            try:
+                                await dolibarr_client.delete(f"stockmovements/{smid}")
+                                deleted_doli_stock_movements += 1
+                            except Exception as e:
+                                logger.warning(f"Impossible de supprimer le mouvement Dolibarr #{smid}: {e}")
+                except Exception as e:
+                    logger.warning(f"Impossible de lire les mouvements du produit Dolibarr #{pid}: {e}")
+
             for p in prods:
                 pid = p.get("id")
                 try:
@@ -194,19 +211,6 @@ async def reset_all_business_data() -> Dict[str, Any]:
                 except Exception as e:
                     logger.warning(f"Impossible de supprimer le tiers Dolibarr #{tid}: {e}")
 
-        # Purge des mouvements de stock Dolibarr
-        try:
-            stockmvts = await dolibarr_client.get("stockmovements")
-            if stockmvts and isinstance(stockmvts, list):
-                for sm in stockmvts:
-                    smid = sm.get("id")
-                    try:
-                        await dolibarr_client.delete(f"stockmovements/{smid}")
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-
     except Exception as e:
         logger.warning(f"Purge Dolibarr partiellement exécutée : {e}")
 
@@ -223,6 +227,13 @@ async def reset_all_business_data() -> Dict[str, Any]:
         from app.models.products.product import Product, Category, StockMovement
         from app.models.audit.audit_log import AuditLog
         from app.models.system.notification import Notification
+        from app.models.system.sync_log import SyncLog
+        from app.models.hr.holiday import PublicHoliday
+        from app.models.ai.prediction import AIPrediction
+        from app.models.ai.anomaly import AIAnomaly
+        from app.models.ai.recommendation import AIRecommendation
+        from app.models.ai.simulation import AISimulation
+        from app.models.ai.snapshot import AnalyticsSnapshot
 
         # Purge des tables métier PostgreSQL
         db.query(JobOffer).delete()
@@ -247,6 +258,15 @@ async def reset_all_business_data() -> Dict[str, Any]:
         db.query(Category).delete()
         db.query(AuditLog).delete()
         db.query(Notification).delete()
+        db.query(SyncLog).delete()
+        db.query(PublicHoliday).delete()
+        
+        # Purge AI tables
+        db.query(AIPrediction).delete()
+        db.query(AIAnomaly).delete()
+        db.query(AIRecommendation).delete()
+        db.query(AISimulation).delete()
+        db.query(AnalyticsSnapshot).delete()
 
         non_admin_users = db.query(User).filter(User.email != "admin@erp.com").all()
         deleted_users_count = len(non_admin_users)
@@ -313,6 +333,7 @@ async def reset_all_business_data() -> Dict[str, Any]:
             "deleted_doli_products": deleted_doli_products,
             "deleted_doli_categories": deleted_doli_categories,
             "deleted_doli_thirdparties": deleted_doli_thirdparties,
+            "deleted_doli_stock_movements": deleted_doli_stock_movements,
             "deleted_pg_users": deleted_users_count,
             "deleted_pg_custom_roles": deleted_roles_count
         },

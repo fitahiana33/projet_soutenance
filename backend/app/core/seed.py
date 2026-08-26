@@ -16,7 +16,19 @@ ADMIN_EMAIL = "admin@erp.com"
 ADMIN_PASSWORD = "Admin@123"
 ADMIN_ROLE = "ADMIN"
 
+
+def _parse_date(val):
+    if isinstance(val, (date, datetime)):
+        return val.date() if isinstance(val, datetime) else val
+    if isinstance(val, str):
+        try:
+            return datetime.strptime(val, "%Y-%m-%d").date()
+        except ValueError:
+            return date.today()
+    return date.today()
+
 DEFAULT_PERMISSIONS = [
+    {"code": "DASHBOARD_READ", "description": "Consulter le tableau de bord de pilotage"},
     {"code": "USER_READ", "description": "Consulter les utilisateurs"},
     {"code": "USER_CREATE", "description": "Créer des utilisateurs"},
     {"code": "USER_UPDATE", "description": "Modifier des utilisateurs"},
@@ -37,6 +49,7 @@ DEFAULT_PERMISSIONS = [
     {"code": "SUPPLIER_READ", "description": "Consulter la base fournisseurs"},
     {"code": "SUPPLIER_CREATE", "description": "Créer des fournisseurs"},
     {"code": "SUPPLIER_UPDATE", "description": "Modifier des fournisseurs"},
+    {"code": "SUPPLIER_DELETE", "description": "Supprimer ou désactiver des fournisseurs"},
     {"code": "SUPPLIER_MANAGE", "description": "Gérer les fournisseurs (CRUD + notation)"},
     {"code": "PURCHASE_READ", "description": "Consulter les demandes et commandes d'achat"},
     {"code": "PURCHASE_CREATE", "description": "Créer des commandes d'achat"},
@@ -88,6 +101,7 @@ DEFAULT_ROLES = [
 ROLE_PERMISSIONS_MAP = {
     "ADMIN": None,
     "DIRECTOR": [
+        "DASHBOARD_READ",
         "USER_READ", "ROLE_READ",
         "DOLIBARR_READ", "DOLIBARR_SYNC",
         "CATEGORY_READ", "PRODUCT_READ",
@@ -112,7 +126,7 @@ ROLE_PERMISSIONS_MAP = {
         "DOLIBARR_READ", "DOLIBARR_SYNC",
         "CATEGORY_READ", "PRODUCT_READ",
         "STOCK_READ", "STOCK_UPDATE",
-        "SUPPLIER_READ", "SUPPLIER_CREATE", "SUPPLIER_UPDATE", "SUPPLIER_MANAGE",
+        "SUPPLIER_READ", "SUPPLIER_CREATE", "SUPPLIER_UPDATE", "SUPPLIER_DELETE", "SUPPLIER_MANAGE",
         "PURCHASE_READ", "PURCHASE_CREATE", "PURCHASE_UPDATE", "PURCHASE_VALIDATE", "PURCHASE_DELETE",
         "NOTIFICATION_READ", "REPORT_READ"
     ],
@@ -411,4 +425,3 @@ def seed_admin(db: Session) -> None:
             db.add(new_param)
 
     db.commit()
-

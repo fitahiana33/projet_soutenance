@@ -4,7 +4,7 @@
 
 export function exportToExcel(filename, sheetName, columns, data) {
   if (!data || !data.length) {
-    alert('Aucune donnée à exporter.')
+    return false
     return
   }
 
@@ -63,6 +63,7 @@ export function exportToExcel(filename, sheetName, columns, data) {
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+  return true
 }
 
 function escapeXml(str) {

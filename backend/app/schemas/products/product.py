@@ -28,6 +28,7 @@ class ProductBase(BaseModel):
     label: str = Field(..., max_length=150, description="Désignation du produit")
     description: Optional[str] = None
     category_id: Optional[int] = None
+    category_ids: List[int] = Field(default_factory=list, description="Categories Dolibarr associees au produit")
     price_purchase: float = Field(default=0.0, ge=0.0)
     price_sell: float = Field(default=0.0, ge=0.0)
     status: str = Field(default="ACTIF", description="ACTIF, INACTIF, REAPPRO")
@@ -46,6 +47,7 @@ class ProductUpdate(BaseModel):
     label: Optional[str] = None
     description: Optional[str] = None
     category_id: Optional[int] = None
+    category_ids: Optional[List[int]] = None
     price_purchase: Optional[float] = None
     price_sell: Optional[float] = None
     status: Optional[str] = None
@@ -60,6 +62,7 @@ class ProductResponse(ProductBase):
     created_at: datetime
     updated_at: datetime
     category: Optional[CategoryResponse] = None
+    categories: List[CategoryResponse] = Field(default_factory=list)
     stock_available: int = 0
 
     class Config:

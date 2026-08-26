@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.services.dolibarr.client import dolibarr_client
-from app.services.products.product_service import get_all_products, record_stock_movement
+from app.services.products.product_service import get_all_products
 from app.services.audit.audit_service import log_action
 from app.models.sales.sales import (
     Customer,
@@ -439,11 +439,15 @@ async def create_sales_quote(
                 "quantity": qty,
                 "unit_price": unit_p,
                 "discount_percent": disc,
+                "discount_amount": round(qty * unit_p * disc / 100.0, 2),
+                "gross_line_ht": round(qty * unit_p, 2),
                 "total_line_ht": round(line_tot, 2),
             })
     else:
         tot_ht = float(quote_data.get("total_amount_ttc", 1000.0)) / 1.20
 
+    gross_ht = sum(float(it.get("quantity", 1)) * float(it.get("unit_price") or 0) for it in items_input)
+    discount_amount = max(0.0, gross_ht - tot_ht)
     vat_rate = float(quote_data.get("vat_rate", 20.0))
     vat_amount = round(tot_ht * vat_rate / 100.0, 2)
     tot_ttc = round(tot_ht + vat_amount, 2)
@@ -464,7 +468,7 @@ async def create_sales_quote(
         vat_rate=vat_rate,
         vat_amount=vat_amount,
         total_ttc=tot_ttc,
-        discount_percent=float(quote_data.get("discount_percent", 0.0)),
+        discount_percent=round((discount_amount / gross_ht) * 100, 2) if gross_ht else 0.0,
         status="EN_ATTENTE",
         quote_date=today,
         validity_date=today + timedelta(days=validity_days),
@@ -569,8 +573,11 @@ async def create_sales_order(
         qty = float(it["quantity"])
         p = prod_map.get(pid, {})
         unit_p = float(it.get("unit_price") or p.get("price", 10.0))
+        disc = float(it.get("discount_percent", 0.0))
 
-        line_tot = qty * unit_p
+        gross_line = qty * unit_p
+        discount_amount = gross_line * disc / 100.0
+        line_tot = gross_line - discount_amount
         tot_ht += line_tot
 
         items_detail.append({
@@ -579,9 +586,14 @@ async def create_sales_order(
             "label": p.get("label", "Produit"),
             "quantity": qty,
             "unit_price": unit_p,
+            "discount_percent": disc,
+            "discount_amount": round(discount_amount, 2),
+            "gross_line_ht": round(gross_line, 2),
             "total_line_ht": round(line_tot, 2),
         })
 
+    gross_ht = sum(float(it.get("quantity", 1)) * float(it.get("unit_price") or 0) for it in order_data["items"])
+    discount_amount = max(0.0, gross_ht - tot_ht)
     vat_rate = float(order_data.get("vat_rate", 20.0))
     vat_amount = round(tot_ht * vat_rate / 100.0, 2)
     tot_ttc = round(tot_ht + vat_amount, 2)
@@ -596,6 +608,10 @@ async def create_sales_order(
         q = db.query(SalesQuote).filter(SalesQuote.id_quote == quote_id).first()
         if q:
             quote_ref_in_order = q.reference
+            if q.status != "ACCEPTE":
+                q.status = "ACCEPTE"
+                q.accepted_date = datetime.now(timezone.utc).date()
+                q.updated_at = datetime.now(timezone.utc)
 
     obj = SalesOrder(
         reference=reference,
@@ -607,7 +623,7 @@ async def create_sales_order(
         vat_rate=vat_rate,
         vat_amount=vat_amount,
         total_ttc=tot_ttc,
-        discount_percent=float(order_data.get("discount_percent", 0.0)),
+        discount_percent=round((discount_amount / gross_ht) * 100, 2) if gross_ht else 0.0,
         status="VALIDEE",
         order_date=datetime.now(timezone.utc),
         expected_delivery_date=order_data.get("expected_delivery_date"),
@@ -625,23 +641,6 @@ async def create_sales_order(
 
     db.commit()
     db.refresh(obj)
-
-    # Dépôt automatique du mouvement de stock (SORTIE pour Vente) dans Dolibarr & Historique
-    for it in items_detail:
-        pid = it["product_id"]
-        qty = int(it["quantity"])
-        try:
-            await record_stock_movement(
-                product_id=pid,
-                movement_type="SORTIE",
-                quantity=qty,
-                reference_doc=reference,
-                comment=f"Vente client {cust.name} (Commande {reference})",
-                user_id=getattr(actor_user, "id_user", None) if actor_user else None,
-                db=db,
-            )
-        except Exception as e:
-            logger.warning(f"Erreur enregistrement mouvement stock pour vente {reference}: {e}")
 
     if actor_user is not None:
         try:
@@ -820,6 +819,14 @@ def create_sales_invoice(
     invoice_number = f"FAC-2026-{new_id:04d}"
 
     today = datetime.now(timezone.utc).date()
+    invoice_date_raw = inv_data.get("invoice_date")
+    if invoice_date_raw:
+        try:
+            invoice_date = datetime.fromisoformat(str(invoice_date_raw).replace("Z", "+00:00")).date()
+        except ValueError:
+            raise RuntimeError("La date de facture est invalide. Utilisez le format AAAA-MM-JJ.")
+    else:
+        invoice_date = today
     payment_method = inv_data.get("payment_mode") or inv_data.get("payment_method", "VIREMENT")
     amount_paid_default = order.total_ttc if payment_method in ["ESPÈCES", "CB", "ESPECES"] else 0.0
     status_default = "PAYEE" if amount_paid_default >= order.total_ttc else "EMISE"
@@ -838,9 +845,9 @@ def create_sales_invoice(
         discount_percent=order.discount_percent,
         amount_paid=inv_data.get("amount_paid", amount_paid_default),
         status=inv_data.get("status", status_default),
-        invoice_date=today,
+        invoice_date=invoice_date,
         due_date=inv_data.get("due_date") or today + timedelta(days=order.customer.payment_terms_days if order.customer else 30),
-        paid_date=today if (inv_data.get("amount_paid", amount_paid_default) >= order.total_ttc and order.total_ttc > 0) else None,
+        paid_date=invoice_date if (inv_data.get("amount_paid", amount_paid_default) >= order.total_ttc and order.total_ttc > 0) else None,
         payment_method=payment_method,
         payment_ref=inv_data.get("payment_ref"),
         notes=inv_data.get("notes"),
@@ -889,6 +896,8 @@ def update_invoice_payment(
     obj = db.query(SalesInvoice).filter(SalesInvoice.id_invoice == invoice_id).first()
     if not obj:
         raise RuntimeError(f"Facture #{invoice_id} non trouvée.")
+    if amount_paid > obj.total_ttc:
+        raise ValueError("Le montant payé ne peut pas dépasser le total TTC de la facture.")
 
     old = _serialize_invoice(obj)
     obj.amount_paid = amount_paid

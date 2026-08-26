@@ -98,9 +98,9 @@
           <span class="product-name">{{ item.label }}</span>
           <div class="product-meta">
             <AppBadge
-              v-if="item.category"
+              v-if="item.category || item.categories?.length"
               variant="primary"
-              :label="item.category.name"
+              :label="item.categories?.length ? item.categories.map(category => category.name).join(', ') : item.category.name"
             />
             <span v-else class="text-muted text-xs">Sans catégorie</span>
           </div>
@@ -215,12 +215,20 @@
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Catégorie</label>
-            <select v-model="productForm.category_id" class="form-select">
-              <option :value="null">Sélectionner une catégorie</option>
-              <option v-for="cat in categories" :key="cat.id_category" :value="cat.id_category">
-                {{ cat.name }}
-              </option>
-            </select>
+            <div class="category-select" @click.stop>
+              <button type="button" class="category-select__trigger" :aria-expanded="showCategoryDropdown" @click="showCategoryDropdown = !showCategoryDropdown">
+                <span v-if="!productForm.category_ids.length" class="text-muted">Choisir une ou plusieurs catégories</span>
+                <span v-else>{{ selectedCategoryNames }}</span>
+                <AppIcon name="chevron-down" size="16" />
+              </button>
+              <div v-if="showCategoryDropdown" class="category-select__menu" role="listbox" aria-multiselectable="true">
+                <label v-for="cat in categories" :key="cat.id_category" class="category-option">
+                  <input type="checkbox" :value="cat.id_category" :checked="isCategorySelected(cat.id_category)" @change="toggleCategory(cat.id_category)" />
+                  <span>{{ cat.name }}</span>
+                </label>
+                <p v-if="!categories.length" class="category-option category-option--empty">Aucune catégorie disponible</p>
+              </div>
+            </div>
           </div>
 
           <div class="form-group">
@@ -439,6 +447,7 @@ import AppIcon from '../../components/ui/AppIcon.vue'
 import AppInput from '../../components/ui/AppInput.vue'
 import AppModal from '../../components/ui/AppModal.vue'
 import AppAlert from '../../components/ui/AppAlert.vue'
+import { confirmAction } from '../../utils/actionConfirm'
 import { exportToExcel } from '../../utils/excelExport'
 
 const products = ref([])
@@ -466,6 +475,7 @@ const showCategoryModal = ref(false)
 const showMovementsModal = ref(false)
 const showAddMovementModal = ref(false)
 const showDeleteProductModal = ref(false)
+const showCategoryDropdown = ref(false)
 
 const editingProduct = ref(null)
 const deletingProduct = ref(null)
@@ -477,7 +487,7 @@ const productForm = ref({
   reference: '',
   label: '',
   description: '',
-  category_id: null,
+  category_ids: [],
   price_purchase: 0,
   price_sell: 0,
   status: 'ACTIF',
@@ -485,6 +495,14 @@ const productForm = ref({
   stock_reserved: 0,
   stock_min: 5,
   stock_max: 100
+})
+
+const selectedCategoryNames = computed(() => {
+  const selected = new Set((productForm.value.category_ids || []).map(Number))
+  return categories.value
+    .filter(category => selected.has(Number(category.id_category)))
+    .map(category => category.name)
+    .join(', ')
 })
 
 const categoryForm = ref({
@@ -551,7 +569,8 @@ const filteredProducts = computed(() => {
   return products.value.filter((p) => {
     const q = searchQuery.value.toLowerCase()
     const matchSearch = !q || (p.label && p.label.toLowerCase().includes(q)) || (p.reference && p.reference.toLowerCase().includes(q))
-    const matchCategory = !selectedCategory.value || p.category_id === parseInt(selectedCategory.value)
+    const categoryIds = p.category_ids || (p.category_id ? [p.category_id] : [])
+    const matchCategory = !selectedCategory.value || categoryIds.includes(parseInt(selectedCategory.value))
     const matchStatus = !selectedStatus.value || p.status === selectedStatus.value
 
     let matchStock = true
@@ -602,16 +621,29 @@ function resetFilters() {
   selectedStockFilter.value = ''
 }
 
+function isCategorySelected(categoryId) {
+  return (productForm.value.category_ids || []).map(Number).includes(Number(categoryId))
+}
+
+function toggleCategory(categoryId) {
+  const id = Number(categoryId)
+  const selected = new Set((productForm.value.category_ids || []).map(Number))
+  if (selected.has(id)) selected.delete(id)
+  else selected.add(id)
+  productForm.value.category_ids = [...selected]
+}
+
 // --- CREATE / EDIT PRODUCT ---
 
 function openCreateProductModal() {
   editingProduct.value = null
   modalError.value = ''
+  showCategoryDropdown.value = false
   productForm.value = {
     reference: '',
     label: '',
     description: '',
-    category_id: categories.value.length ? categories.value[0].id_category : null,
+    category_ids: [],
     price_purchase: 0,
     price_sell: 0,
     status: 'ACTIF',
@@ -626,11 +658,12 @@ function openCreateProductModal() {
 function openEditProductModal(item) {
   editingProduct.value = item
   modalError.value = ''
+  showCategoryDropdown.value = false
   productForm.value = {
     reference: item.reference || '',
     label: item.label || '',
     description: item.description || '',
-    category_id: item.category_id || null,
+    category_ids: (item.category_ids || (item.category_id ? [item.category_id] : [])).map(Number),
     price_purchase: item.price_purchase || 0,
     price_sell: item.price_sell || 0,
     status: item.status || 'ACTIF',
@@ -653,7 +686,7 @@ async function saveProduct() {
 
   const payload = {
     ...productForm.value,
-    category_id: productForm.value.category_id ? Number(productForm.value.category_id) : null,
+    category_ids: (productForm.value.category_ids || []).map(Number),
     price_purchase: Number(productForm.value.price_purchase || 0),
     price_sell: Number(productForm.value.price_sell || 0),
     stock_quantity: Number(productForm.value.stock_quantity || 0),
@@ -740,6 +773,7 @@ async function saveStockMovement() {
     mvtModalError.value = 'Veuillez saisir une quantité non nulle.'
     return
   }
+  if (!confirmAction('Confirmer ce mouvement de stock ? La quantité sera modifiée.')) return
 
   savingMvt.value = true
   mvtModalError.value = ''
@@ -985,6 +1019,78 @@ function formatDate(isoStr) {
 .form-label {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
+}
+
+.category-select {
+  position: relative;
+  width: 100%;
+}
+
+.category-select__trigger {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.category-select__trigger:hover,
+.category-select__trigger:focus-visible {
+  border-color: var(--color-primary);
+}
+
+.category-select__menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.category-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.category-option:hover {
+  background: var(--color-primary-light);
+}
+
+.category-option input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--color-primary);
+}
+
+.category-option--empty {
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.form-help {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
 }
 
 .movements-header {

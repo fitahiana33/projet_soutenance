@@ -4,26 +4,29 @@
 
 :root {
   /* Couleurs principales */
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-primary-light: #eff6ff;
+  --color-primary: #155eef;
+  --color-primary-hover: #0b4acb;
+  --color-primary-light: #edf4ff;
+  --color-primary-contrast: #ffffff;
 
   --color-danger: #dc2626;
   --color-danger-hover: #b91c1c;
   --color-danger-light: #fef2f2;
 
-  --color-success: #059669;
-  --color-success-light: #ecfdf5;
+  --color-success: #087f5b;
+  --color-success-light: #e9f8f1;
 
-  --color-warning: #d97706;
-  --color-warning-light: #fffbeb;
+  --color-warning: #b85c00;
+  --color-warning-light: #fff5e6;
 
   /* Couleurs neutres */
-  --color-bg: #f5f7fb;
+  --color-bg: #f6f8fc;
   --color-surface: #ffffff;
-  --color-border: #d7dde6;
-  --color-text: #111827;
-  --color-text-muted: #64748b;
+  --color-surface-raised: #fbfcfe;
+  --color-border: #dce3ed;
+  --color-text: #182230;
+  --color-text-muted: #65748b;
+  --color-text-subtle: #8a98aa;
 
   /* Surfaces de navigation */
   --color-sidebar-bg: #0f172a;
@@ -35,13 +38,14 @@
   --color-footer-text: #64748b;
 
   /* Typographie */
-  --font-family-base: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-family-base: "Avenir Next", "Segoe UI", system-ui, sans-serif;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-base: 1rem;
   --font-size-lg: 1.125rem;
   --font-size-xl: 1.25rem;
-  --font-size-2xl: 1.5rem;
+  --font-size-2xl: 1.75rem;
+  --font-size-3xl: 2.25rem;
 
   --font-weight-regular: 400;
   --font-weight-medium: 500;
@@ -60,18 +64,19 @@
   --space-12: 3rem;
 
   /* Rayons */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
 
   /* Ombres */
-  --shadow-sm: 0 1px 3px rgba(17, 24, 39, 0.08);
-  --shadow-md: 0 6px 18px rgba(17, 24, 39, 0.08);
-  --shadow-lg: 0 18px 45px rgba(20, 32, 79, 0.12);
+  --shadow-sm: 0 1px 2px rgba(24, 34, 48, 0.04), 0 4px 12px rgba(24, 34, 48, 0.04);
+  --shadow-md: 0 8px 24px rgba(24, 34, 48, 0.09);
+  --shadow-lg: 0 20px 50px rgba(24, 34, 48, 0.14);
 
   /* Layout */
   --sidebar-width: 240px;
   --sidebar-width-collapsed: 64px;
   --header-height: 64px;
-  --max-content-width: 1200px;
+  --max-content-width: 1440px;
 }

@@ -28,6 +28,16 @@
       {{ pageSuccess }}
     </AppAlert>
 
+    <AppModal v-model="showDeleteJobModal" title="Confirmation de suppression" size="sm">
+      <p class="modal-confirmation">
+        La suppression de cette offre est definitive. Voulez-vous continuer ?
+      </p>
+      <template #footer>
+        <AppButton variant="ghost" @click="showDeleteJobModal = false">Annuler</AppButton>
+        <AppButton variant="danger" :loading="saving" @click="confirmDeleteJob">Supprimer l'offre</AppButton>
+      </template>
+    </AppModal>
+
     <!-- Top KPIs -->
     <div class="kpi-grid mb-6">
       <AppCard class="kpi-card">
@@ -155,7 +165,7 @@
                       <AppIcon name="check" size="12" />
                       <span>Rouvrir</span>
                     </AppButton>
-                    <AppButton variant="danger" size="xs" @click="handleDeleteJob(j.id_job)">
+                    <AppButton variant="danger" size="xs" @click="requestDeleteJob(j)">
                       <AppIcon name="trash" size="12" />
                     </AppButton>
                   </div>
@@ -426,6 +436,7 @@ import AppIcon from '../../components/ui/AppIcon.vue'
 import AppInput from '../../components/ui/AppInput.vue'
 import AppModal from '../../components/ui/AppModal.vue'
 import AppAlert from '../../components/ui/AppAlert.vue'
+import { confirmAction } from '../../utils/actionConfirm'
 
 const activeTab = ref('jobs')
 const overview = ref({})
@@ -440,6 +451,8 @@ const saving = ref(false)
 const showJobModal = ref(false)
 const showEditJobModal = ref(false)
 const showCandidateModal = ref(false)
+const showDeleteJobModal = ref(false)
+const jobToDelete = ref(null)
 
 const pageError = ref('')
 const pageSuccess = ref('')
@@ -472,6 +485,29 @@ async function fetchData() {
     if (candidates.value.length) selectedCandidateId.value = candidates.value[0].id_candidate
   } catch (e) {
     pageError.value = 'Erreur lors du chargement des recrutements.'
+  }
+}
+
+function requestDeleteJob(job) {
+  jobToDelete.value = job
+  showDeleteJobModal.value = true
+}
+
+async function confirmDeleteJob() {
+  if (!jobToDelete.value?.id_job) return
+  saving.value = true
+  pageError.value = ''
+  pageSuccess.value = ''
+  try {
+    await recruitmentService.deleteJobOffer(jobToDelete.value.id_job)
+    showDeleteJobModal.value = false
+    jobToDelete.value = null
+    pageSuccess.value = 'Offre supprimee avec succes.'
+    await fetchData()
+  } catch (e) {
+    pageError.value = 'Erreur lors de la suppression de l offre.'
+  } finally {
+    saving.value = false
   }
 }
 
@@ -514,6 +550,7 @@ async function handleUpdateJob() {
 }
 
 async function changeJobStatus(id, newStatus) {
+  if (!confirmAction(`Confirmer le passage de l’offre au statut « ${newStatus} » ?`)) return
   saving.value = true
   pageError.value = ''
   pageSuccess.value = ''
@@ -529,7 +566,8 @@ async function changeJobStatus(id, newStatus) {
 }
 
 async function handleDeleteJob(id) {
-  if (!confirm('Êtes-vous sûr de vouloir supprimer cette offre d\'emploi ?')) return
+  requestDeleteJob(jobOffers.value.find(job => job.id_job === id) || { id_job: id })
+  return
   saving.value = true
   pageError.value = ''
   pageSuccess.value = ''
@@ -546,6 +584,7 @@ async function handleDeleteJob(id) {
 
 async function changeCandidateStatus(id, newStatus) {
   if (!newStatus) return
+  if (!confirmAction(`Confirmer le changement de statut du candidat vers « ${newStatus} » ?`)) return
   saving.value = true
   pageError.value = ''
   pageSuccess.value = ''

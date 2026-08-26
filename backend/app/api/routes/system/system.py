@@ -20,7 +20,7 @@ def read_business_parameters(
     raw: bool = Query(False, description="Si true, renvoie la liste d'objets SystemParameter, sinon le dictionnaire de valeurs."),
     category: Optional[str] = Query(None, description="Filtrer par catégorie"),
     db: Session = Depends(get_db),
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: UserResponse = Depends(require_permission("SYSTEM_READ"))
 ):
     """Récupère les paramètres métiers système configurés dans PostgreSQL."""
     if raw:
@@ -32,7 +32,7 @@ def read_business_parameters(
 def create_system_parameter(
     payload: ParameterCreate,
     db: Session = Depends(get_db),
-    current_user: UserResponse = Depends(require_permission("PERMISSION_MANAGE"))
+    current_user: UserResponse = Depends(require_permission("SYSTEM_MANAGE"))
 ):
     """Création d'un nouveau paramètre système dans PostgreSQL."""
     existing = system_service.get_parameter_by_key(db, payload.key)
@@ -46,7 +46,7 @@ def update_system_parameter(
     id_param: int,
     payload: ParameterUpdate,
     db: Session = Depends(get_db),
-    current_user: UserResponse = Depends(require_permission("PERMISSION_MANAGE"))
+    current_user: UserResponse = Depends(require_permission("SYSTEM_MANAGE"))
 ):
     """Modification d'un paramètre système existant dans PostgreSQL."""
     updated = system_service.update_parameter(db, id_param, payload)
@@ -59,7 +59,7 @@ def update_system_parameter(
 def delete_system_parameter(
     id_param: int,
     db: Session = Depends(get_db),
-    current_user: UserResponse = Depends(require_permission("PERMISSION_MANAGE"))
+    current_user: UserResponse = Depends(require_permission("SYSTEM_MANAGE"))
 ):
     """Suppression d'un paramètre système de PostgreSQL."""
     success = system_service.delete_parameter(db, id_param)
@@ -72,7 +72,7 @@ def delete_system_parameter(
 def bulk_modify_business_parameters(
     payload: dict,
     db: Session = Depends(get_db),
-    current_user: UserResponse = Depends(require_permission("PERMISSION_MANAGE"))
+    current_user: UserResponse = Depends(require_permission("SYSTEM_MANAGE"))
 ):
     """Met à jour les paramètres métiers par lots dans PostgreSQL."""
     return system_service.bulk_update_parameters(db, payload)
@@ -81,11 +81,11 @@ def bulk_modify_business_parameters(
 @router.post("/reset-data", status_code=status.HTTP_200_OK)
 async def reset_business_data(
     payload: ResetDataRequest,
-    current_user: UserResponse = Depends(require_permission("PERMISSION_MANAGE"))
+    current_user: UserResponse = Depends(require_permission("SYSTEM_MANAGE"))
 ):
     """
     Réinitialise les données métiers.
-    Nécessite la confirmation 'RESET' et la permission PERMISSION_MANAGE.
+    Nécessite la confirmation 'RESET' et la permission SYSTEM_MANAGE.
     """
     if payload.confirm_text.upper() != "RESET":
         raise HTTPException(

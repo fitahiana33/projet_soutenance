@@ -63,6 +63,7 @@ import AppCard from '../../components/ui/AppCard.vue'
 import AppInput from '../../components/ui/AppInput.vue'
 import AppButton from '../../components/ui/AppButton.vue'
 import AppAlert from '../../components/ui/AppAlert.vue'
+import { getFirstAllowedPath, userCanAccess } from '../../utils/access'
 
 const router = useRouter()
 const route = useRoute()
@@ -87,8 +88,10 @@ async function handleSubmit() {
     const result = await authStore.login(email.value, password.value)
 
     if (result.success) {
-      const redirect = route.query.redirect || '/dashboard'
-      router.push(redirect)
+      const requestedPath = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+      const requestedRoute = requestedPath ? router.resolve(requestedPath) : null
+      const canReturnToRequestedPage = requestedRoute && requestedRoute.name !== 'forbidden' && userCanAccess(authStore.currentUser, requestedRoute.meta.permissions || [])
+      router.push(canReturnToRequestedPage ? requestedPath : getFirstAllowedPath(authStore.currentUser))
     } else {
       error.value = result.message || 'Identifiants invalides.'
     }

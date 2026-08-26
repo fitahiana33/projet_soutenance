@@ -105,10 +105,10 @@
                   <td>
                     <div class="flex justify-end gap-2">
                       <button class="btn btn-secondary btn-xs" title="Éditer" @click="openEditParamModal(param)">
-                        ✏️ Éditer
+                        <AppIcon name="edit" size="16" /> Éditer
                       </button>
                       <button class="btn btn-danger btn-xs" title="Supprimer" @click="confirmDeleteParam(param)">
-                        🗑️ Supprimer
+                        <AppIcon name="trash" size="16" /> Supprimer
                       </button>
                     </div>
                   </td>

@@ -57,7 +57,12 @@ def get_audit_logs(
     query = db.query(AuditLog)
     
     if module:
-        query = query.filter(AuditLog.module == module.upper())
+        mod_upper = module.upper()
+        if mod_upper in ["SYSTEME", "SYSTEM"]:
+            query = query.filter(AuditLog.module.in_(["SYSTEM", "SYSTEME"]))
+        else:
+            query = query.filter(AuditLog.module == mod_upper)
+
     if action:
         query = query.filter(AuditLog.action == action.upper())
     if username:
@@ -94,6 +99,12 @@ def get_audit_stats(db: Session) -> Dict[str, Any]:
     for m in modules:
         by_module[m] = db.query(AuditLog).filter(AuditLog.module == m).count()
 
+    # Répartition par action
+    actions = ["CREATE", "UPDATE", "DELETE", "PURGE", "LOGIN", "VALIDATE"]
+    actions_count = {}
+    for act in actions:
+        actions_count[act] = db.query(AuditLog).filter(AuditLog.action == act).count()
+
     # Dernières actions sensibles
     recent_sensitive = (
         db.query(AuditLog)
@@ -104,7 +115,9 @@ def get_audit_stats(db: Session) -> Dict[str, Any]:
     )
 
     return {
+        "total_logs": total_logs,
         "total_audit_events": total_logs,
+        "actions_count": actions_count,
         "events_by_module": by_module,
         "recent_sensitive_events_count": len(recent_sensitive)
     }

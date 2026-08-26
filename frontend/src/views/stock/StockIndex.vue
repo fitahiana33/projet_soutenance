@@ -136,10 +136,7 @@ function saveProduct() {
 }
 
 function adjustStock(item) {
-  const newQty = prompt(`Entrez la nouvelle quantité en stock pour ${item.name} :`, item.qty)
-  if (newQty !== null && !isNaN(newQty)) {
-    item.qty = parseInt(newQty, 10)
-  }
+  return item
 }
 </script>
 

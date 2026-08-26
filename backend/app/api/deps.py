@@ -125,3 +125,34 @@ def require_permission(*permission_codes: str):
         return user
 
     return dependency
+
+
+def require_all_permissions(*permission_codes: str):
+    def dependency(user: User = Depends(get_current_user)) -> User:
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Votre compte est désactivé"
+            )
+
+        user_role_names = {role.libelle.upper() for role in user.roles}
+        if "ADMIN" in user_role_names:
+            return user
+
+        user_permissions = {
+            _normalize(permission.code)
+            for role in user.roles
+            for permission in role.permissions
+        }
+
+        normalized_targets = {_normalize(code) for code in permission_codes}
+
+        if not normalized_targets.issubset(user_permissions):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Accès refusé : permissions cumulatives insuffisantes"
+            )
+
+        return user
+
+    return dependency

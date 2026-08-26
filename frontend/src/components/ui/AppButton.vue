@@ -68,6 +68,7 @@ function handleClick(event) {
   line-height: 1;
   transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
   text-decoration: none;
+  min-height: 40px;
 }
 
 .btn:disabled {
@@ -78,11 +79,13 @@ function handleClick(event) {
 .btn--xs {
   padding: 0.25rem 0.5rem;
   font-size: var(--font-size-xs);
+  min-height: 32px;
 }
 
 .btn--sm {
   padding: var(--space-2) var(--space-3);
   font-size: var(--font-size-sm);
+  min-height: 36px;
 }
 
 .btn--md {

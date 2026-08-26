@@ -142,7 +142,7 @@ function addEmployee() {
 }
 
 function viewEmployee(item) {
-  alert(`Fiche collaborateur : ${item.name} (${item.position})`)
+  return item
 }
 </script>
 
