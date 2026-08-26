@@ -976,6 +976,7 @@ def get_hr_overview(db: Session) -> Dict[str, Any]:
         "active_employees": active_count,
         "total_gross_payroll": round(total_gross_payroll, 2),
         "total_net_payroll": round(total_net_payroll, 2),
+        "total_employee_deductions": round(sum(p.deductions for p in payrolls), 2),
         "total_employer_charges": round(total_employer_charges, 2),
         "average_net_salary": avg_net_salary,
         "pending_time_off_count": len(pending_leave),

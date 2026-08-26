@@ -397,7 +397,9 @@ const visiblePages = computed(() => {
 
 .app-table {
   width: 100%;
-  border-collapse: collapse;
+  border: 1px solid var(--color-border);
+  border-collapse: separate;
+  border-spacing: 0;
   text-align: left;
   font-size: var(--font-size-sm);
 }
@@ -411,6 +413,7 @@ const visiblePages = computed(() => {
   letter-spacing: 0.05em;
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
   white-space: nowrap;
   user-select: none;
 }
@@ -438,8 +441,14 @@ const visiblePages = computed(() => {
 .table-td {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
   color: var(--color-text);
   vertical-align: middle;
+}
+
+.table-th:last-child,
+.table-td:last-child {
+  border-right: none;
 }
 
 .table-row:last-child .table-td {

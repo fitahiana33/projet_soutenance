@@ -272,6 +272,93 @@ h6 {
   font-size: var(--font-size-sm);
 }
 
+/* Separateurs communs pour rendre les tableaux denses plus lisibles. */
+.table,
+.history-table,
+.matrix-table {
+  border: 1px solid var(--color-border);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+}
+
+.table th,
+.table td,
+.history-table th,
+.history-table td,
+.matrix-table th,
+.matrix-table td {
+  border-right: 1px solid var(--color-border);
+}
+
+.table th:last-child,
+.table td:last-child,
+.history-table th:last-child,
+.history-table td:last-child,
+.matrix-table th:last-child,
+.matrix-table td:last-child {
+  border-right: none;
+}
+
+.table tbody tr:last-child td,
+.history-table tbody tr:last-child td,
+.matrix-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Les tableaux sont sur fond clair: les anciennes classes de theme sombre
+   ne doivent jamais rendre une valeur invisible. */
+.table td .text-white,
+.table td.text-white,
+.table td .text-slate-300,
+.table td.text-slate-300,
+.table td .text-slate-400,
+.table td.text-slate-400,
+.history-table td .text-white,
+.history-table td.text-white,
+.history-table td .text-slate-300,
+.history-table td.text-slate-300,
+.history-table td .text-slate-400,
+.history-table td.text-slate-400,
+.matrix-table td .text-white,
+.matrix-table td.text-white,
+.matrix-table td .text-slate-300,
+.matrix-table td.text-slate-300,
+.matrix-table td .text-slate-400,
+.matrix-table td.text-slate-400 {
+  color: var(--color-text) !important;
+}
+
+.table td .text-amber-400,
+.history-table td .text-amber-400,
+.matrix-table td .text-amber-400 {
+  color: var(--color-warning) !important;
+}
+
+.table td .text-emerald-400,
+.history-table td .text-emerald-400,
+.matrix-table td .text-emerald-400 {
+  color: var(--color-success) !important;
+}
+
+.table td .text-rose-300,
+.history-table td .text-rose-300,
+.matrix-table td .text-rose-300 {
+  color: var(--color-danger) !important;
+}
+
+/* Les listes de donnees gardent le meme langage visuel que les tableaux. */
+.mvt-item,
+.scope-list li {
+  border: 1px solid var(--color-border);
+}
+
+.mvt-item:hover,
+.scope-list li:hover {
+  border-color: rgba(21, 94, 239, 0.35);
+  background-color: var(--color-primary-light);
+}
+
 /* ============================================================
    Cartes KPI & Grille de Tableau de Bord Globales
    ============================================================ */

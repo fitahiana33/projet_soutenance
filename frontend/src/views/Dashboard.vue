@@ -80,6 +80,47 @@
       </AppCard>
     </div>
 
+    <!-- Tendances: les variations expliquent l'evolution, pas seulement le niveau actuel. -->
+    <div class="dashboard-insights mb-6">
+      <AppCard title="Evolution de l'activite commerciale (6 derniers mois)" class="trend-card">
+        <p class="chart-description">Chiffre d'affaires encaisse par mois, base sur les factures enregistrees.</p>
+        <div v-if="salesTrend.length" class="trend-chart" aria-label="Evolution du chiffre d'affaires sur six mois">
+          <div v-for="point in salesTrend" :key="point.period" class="trend-column">
+            <span class="trend-value">{{ formatCompactCurrency(point.revenue) }}</span>
+            <div class="trend-bar-track">
+              <div class="trend-bar" :style="{ height: `${trendHeight(point.revenue)}%` }"></div>
+            </div>
+            <span class="trend-label">{{ formatMonth(point.period) }}</span>
+          </div>
+        </div>
+        <div v-else class="empty-state">Aucune donnee mensuelle disponible.</div>
+      </AppCard>
+
+      <div class="variation-grid">
+        <AppCard class="variation-card">
+          <span class="kpi-title">CA encaisse ce mois</span>
+          <strong class="variation-value">{{ formatCurrency(salesMetrics.current_month_revenue || 0) }}</strong>
+          <span :class="['variation-label', variationClass(salesMetrics.revenue_variation_percent)]">
+            {{ variationLabel(salesMetrics.revenue_variation_percent) }} vs mois precedent
+          </span>
+        </AppCard>
+        <AppCard class="variation-card">
+          <span class="kpi-title">Factures emises ce mois</span>
+          <strong class="variation-value">{{ salesMetrics.current_month_invoices || 0 }}</strong>
+          <span :class="['variation-label', variationClass(salesMetrics.invoices_variation_percent)]">
+            {{ variationLabel(salesMetrics.invoices_variation_percent) }} vs mois precedent
+          </span>
+        </AppCard>
+        <AppCard class="variation-card">
+          <span class="kpi-title">Achats commandes ce mois</span>
+          <strong class="variation-value">{{ formatCurrency(purchaseMetrics.current_month_purchase_amount || 0) }}</strong>
+          <span :class="['variation-label', variationClass(purchaseMetrics.purchase_variation_percent)]">
+            {{ variationLabel(purchaseMetrics.purchase_variation_percent) }} vs mois precedent
+          </span>
+        </AppCard>
+      </div>
+    </div>
+
     <!-- BI Visualizations Grid -->
     <div class="dashboard-main-grid mb-6">
       <!-- SVG Chart 1: Répartition de la Paie (Brut vs Cotisations vs Net) -->
@@ -89,7 +130,7 @@
             <div class="bar-group">
               <div class="bar-label">Salaire Brut Total</div>
               <div class="bar-track">
-                <div class="bar-fill bg-blue-500" style="width: 100%;"></div>
+                <div class="bar-fill bg-blue-500" :style="{ width: `${payrollBars.gross}%` }"></div>
               </div>
               <div class="bar-val">{{ formatCurrency(hrMetrics.total_gross_payroll || 0) }}</div>
             </div>
@@ -97,15 +138,15 @@
             <div class="bar-group">
               <div class="bar-label">Cotisations Salariales & IRSA</div>
               <div class="bar-track">
-                <div class="bar-fill bg-rose-500" style="width: 27%;"></div>
+                <div class="bar-fill bg-rose-500" :style="{ width: `${payrollBars.employeeCharges}%` }"></div>
               </div>
-              <div class="bar-val">{{ formatCurrency((hrMetrics.total_gross_payroll || 0) * 0.27) }}</div>
+              <div class="bar-val">{{ formatCurrency(hrMetrics.total_employee_deductions || 0) }}</div>
             </div>
 
             <div class="bar-group">
               <div class="bar-label">Salaire Net Payé</div>
               <div class="bar-track">
-                <div class="bar-fill bg-emerald-500" style="width: 73%;"></div>
+                <div class="bar-fill bg-emerald-500" :style="{ width: `${payrollBars.net}%` }"></div>
               </div>
               <div class="bar-val">{{ formatCurrency(hrMetrics.total_net_payroll_monthly || 0) }}</div>
             </div>
@@ -113,9 +154,9 @@
             <div class="bar-group">
               <div class="bar-label">Charges Patronales (CNaPS+OSTIE)</div>
               <div class="bar-track">
-                <div class="bar-fill bg-amber-500" style="width: 18%;"></div>
+                <div class="bar-fill bg-amber-500" :style="{ width: `${payrollBars.employerCharges}%` }"></div>
               </div>
-              <div class="bar-val">{{ formatCurrency((hrMetrics.total_gross_payroll || 0) * 0.18) }}</div>
+              <div class="bar-val">{{ formatCurrency(hrMetrics.total_employer_charges || 0) }}</div>
             </div>
           </div>
         </div>
@@ -170,21 +211,6 @@
         </div>
       </AppCard>
 
-      <!-- Active Services Status -->
-      <AppCard title="⚡ État des Services Système ERP" class="grid-card">
-        <div class="module-status-list">
-          <div v-for="mod in modules" :key="mod.name" class="module-status-item">
-            <div class="module-info">
-              <AppIcon :name="mod.icon" size="18" class="module-icon" />
-              <div>
-                <h4 class="module-name">{{ mod.name }}</h4>
-                <p class="module-desc">{{ mod.desc }}</p>
-              </div>
-            </div>
-            <AppBadge :variant="mod.variant" :label="mod.status" />
-          </div>
-        </div>
-      </AppCard>
     </div>
   </AppLayout>
 </template>
@@ -197,7 +223,6 @@ import { useAuthStore } from '../store/auth'
 import AppLayout from '../layouts/AppLayout.vue'
 import PageHeader from '../components/ui/PageHeader.vue'
 import AppCard from '../components/ui/AppCard.vue'
-import AppBadge from '../components/ui/AppBadge.vue'
 import AppButton from '../components/ui/AppButton.vue'
 import AppIcon from '../components/ui/AppIcon.vue'
 
@@ -217,6 +242,25 @@ const fullName = computed(() => {
   }
   return user.name || 'Direction Générale'
 })
+
+const payrollBars = computed(() => {
+  const gross = Math.max(Number(hrMetrics.value.total_gross_payroll || 0), 0)
+  const employeeCharges = Math.max(Number(hrMetrics.value.total_employee_deductions || 0), 0)
+  const net = Math.max(Number(hrMetrics.value.total_net_payroll || 0), 0)
+  const employerCharges = Math.max(Number(hrMetrics.value.total_employer_charges || 0), 0)
+  const maximum = Math.max(gross, employeeCharges, net, employerCharges, 1)
+  const width = value => Math.min(100, Math.max(0, (value / maximum) * 100))
+
+  return {
+    gross: width(gross),
+    employeeCharges: width(employeeCharges),
+    net: width(net),
+    employerCharges: width(employerCharges)
+  }
+})
+
+const salesTrend = computed(() => Array.isArray(salesMetrics.value.sales_trend) ? salesMetrics.value.sales_trend : [])
+const trendMax = computed(() => Math.max(...salesTrend.value.map(point => Number(point.revenue || 0)), 1))
 
 async function fetchMetrics() {
   try {
@@ -242,6 +286,30 @@ function formatCurrency(val) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(val || 0)
 }
 
+function formatCompactCurrency(val) {
+  return new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(val || 0))
+}
+
+function formatMonth(period) {
+  if (!period) return '-'
+  return new Intl.DateTimeFormat('fr-FR', { month: 'short' }).format(new Date(`${period}-02`))
+}
+
+function trendHeight(value) {
+  return Math.max(4, (Number(value || 0) / trendMax.value) * 100)
+}
+
+function variationLabel(value) {
+  if (value === null || value === undefined) return 'Nouveau / non comparable'
+  const numeric = Number(value)
+  return `${numeric >= 0 ? '+' : ''}${numeric.toFixed(1)} %`
+}
+
+function variationClass(value) {
+  if (value === null || value === undefined) return 'variation-label--neutral'
+  return Number(value) >= 0 ? 'variation-label--positive' : 'variation-label--negative'
+}
+
 function formatDate(str) {
   if (!str) return 'Récemment'
   return new Date(str).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
@@ -252,51 +320,6 @@ function getBadgeClass(act) {
   if (act === 'DELETE') return 'timeline-badge--danger'
   return 'timeline-badge--primary'
 }
-
-const modules = [
-  {
-    name: 'Module Ventes & Facturation Clients',
-    desc: 'Devis, réservations stock et factures',
-    status: 'Opérationnel',
-    variant: 'success',
-    icon: 'dollar-sign'
-  },
-  {
-    name: 'Module Achats & 3-Way Matching',
-    desc: 'Commandes fournisseurs et réceptions BL',
-    status: 'Opérationnel',
-    variant: 'success',
-    icon: 'shopping-cart'
-  },
-  {
-    name: 'Module Stocks & Inventaires CUMP/FIFO',
-    desc: 'Valorisation dynamique et lots/séries',
-    status: 'Opérationnel',
-    variant: 'success',
-    icon: 'box'
-  },
-  {
-    name: 'Module RH & Paie Madagascar',
-    desc: 'Fiches de paie, CNaPS, OSTIE, IRSA',
-    status: 'Opérationnel',
-    variant: 'success',
-    icon: 'users'
-  },
-  {
-    name: 'Module Recrutement & Matching',
-    desc: 'Fiches de poste et scoring compétences',
-    status: 'Opérationnel',
-    variant: 'success',
-    icon: 'shield'
-  },
-  {
-    name: 'Sécurité RBAC & Journal d\'Audit',
-    desc: 'Journal d\'audit et matrice des habilitations',
-    status: 'Opérationnel',
-    variant: 'success',
-    icon: 'clock'
-  }
-]
 
 onMounted(fetchMetrics)
 </script>
@@ -391,6 +414,96 @@ onMounted(fetchMetrics)
   text-align: right;
 }
 
+.dashboard-insights {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
+  gap: var(--space-6);
+}
+
+.chart-description {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  margin-bottom: var(--space-4);
+}
+
+.trend-chart {
+  display: flex;
+  align-items: end;
+  gap: var(--space-4);
+  min-height: 190px;
+  padding: var(--space-4) var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.trend-column {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 42px;
+  height: 100%;
+  justify-content: end;
+}
+
+.trend-value,
+.trend-label {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.trend-bar-track {
+  align-items: end;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  display: flex;
+  height: 120px;
+  overflow: hidden;
+  width: min(42px, 100%);
+}
+
+.trend-bar {
+  background: linear-gradient(180deg, var(--color-primary), #73a3ff);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  min-height: 4px;
+  transition: height 0.35s ease;
+  width: 100%;
+}
+
+.variation-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-rows: repeat(3, 1fr);
+}
+
+.variation-card {
+  border-left: 3px solid var(--color-primary);
+  display: flex;
+  gap: var(--space-1);
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.variation-value {
+  font-size: var(--font-size-xl);
+}
+
+.variation-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.variation-label--positive { color: var(--color-success); }
+.variation-label--negative { color: var(--color-danger); }
+.variation-label--neutral { color: var(--color-text-muted); }
+
+.empty-state {
+  color: var(--color-text-muted);
+  padding: var(--space-8) 0;
+  text-align: center;
+}
+
 .timeline {
   display: flex;
   flex-direction: column;
@@ -422,10 +535,10 @@ onMounted(fetchMetrics)
 .timeline-desc { font-size: var(--font-size-xs); color: var(--color-text-muted); margin: 2px 0 0; }
 .timeline-time { font-size: 0.7rem; color: var(--color-text-muted); opacity: 0.8; }
 
-.module-status-list { display: flex; flex-direction: column; gap: var(--space-3); }
-.module-status-item { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; background-color: var(--color-bg); border-radius: var(--radius-md); }
-.module-info { display: flex; align-items: center; gap: var(--space-3); }
-.module-icon { color: var(--color-primary); }
-.module-name { font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); margin: 0; }
-.module-desc { font-size: var(--font-size-xs); color: var(--color-text-muted); margin: 0; }
+@media (max-width: 900px) {
+  .dashboard-insights {
+    grid-template-columns: 1fr;
+  }
+}
+
 </style>

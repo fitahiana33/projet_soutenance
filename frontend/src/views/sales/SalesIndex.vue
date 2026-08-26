@@ -141,7 +141,7 @@
               <tr v-for="inv in invoices" :key="inv.id_invoice">
                 <td class="font-bold color-primary">{{ inv.invoice_ref }}</td>
                 <td class="font-semibold text-slate-300">{{ inv.order_ref }}</td>
-                <td class="font-semibold text-white">{{ inv.customer_name }}</td>
+                <td class="font-semibold text-white">{{ customerName(inv) }}</td>
                 <td>{{ formatCurrency(inv.total_amount_ht) }}</td>
                 <td class="font-bold text-amber-400">{{ formatCurrency(inv.total_amount_ttc) }}</td>
                 <td class="font-bold color-success">{{ formatCurrency(inv.amount_paid) }}</td>
@@ -204,7 +204,7 @@
             <tbody>
               <tr v-for="ord in orders" :key="ord.id_order">
                 <td class="font-bold color-primary">{{ ord.order_ref }}</td>
-                <td class="font-semibold text-white">{{ ord.customer_name }}</td>
+                <td class="font-semibold text-white">{{ customerName(ord) }}</td>
                 <td>{{ ord.items_count || (ord.items ? ord.items.length : 1) }} ligne(s)</td>
                 <td>{{ formatCurrency(ord.total_amount_ht) }}</td>
                 <td class="font-bold text-amber-400">{{ formatCurrency(ord.total_amount_ttc) }}</td>
@@ -298,7 +298,7 @@
             <tbody>
               <tr v-for="q in quotes" :key="q.id_quote">
                 <td class="font-bold color-primary">{{ q.quote_ref }}</td>
-                <td class="font-semibold text-white">{{ q.customer_name }}</td>
+                <td class="font-semibold text-white">{{ customerName(q) }}</td>
                 <td>{{ formatCurrency(q.total_amount_ht || q.total_amount_ttc / 1.2) }}</td>
                 <td class="font-bold text-amber-400">{{ formatCurrency(q.total_amount_ttc) }}</td>
                 <td><span class="badge badge-warning">{{ q.status }}</span></td>
@@ -576,7 +576,7 @@
           <label class="block text-slate-300 font-semibold mb-1">Sélectionner la Commande *</label>
           <select v-model="invoiceForm.order_id" class="input" required>
             <option v-for="o in availableOrdersForInvoice" :key="o.id_order" :value="o.id_order">
-              {{ o.order_ref }} — {{ o.customer_name }} ({{ formatCurrency(o.total_amount_ttc) }})
+              {{ o.order_ref }} — {{ customerName(o) }} ({{ formatCurrency(o.total_amount_ttc) }})
             </option>
           </select>
         </div>
@@ -797,11 +797,14 @@ const parsedDetailItems = computed(() => {
 const detailDiscountTotal = computed(() => parsedDetailItems.value.reduce((sum, item) => sum + Number(item.discount_amount || 0), 0))
 
 const detailCustomerName = computed(() => {
-  const item = selectedDetailItem.value || {}
+  return customerName(selectedDetailItem.value)
+})
+
+function customerName(item = {}) {
   if (item.customer_name) return item.customer_name
   const customer = customers.value.find(c => Number(c.id_customer) === Number(item.customer_id))
   return customer?.name || (item.customer_id ? `Client #${item.customer_id}` : 'Client non renseigné')
-})
+}
 
 function detailProductLabel(item, index) {
   if (item.label || item.product_label || item.designation || item.reference) {
