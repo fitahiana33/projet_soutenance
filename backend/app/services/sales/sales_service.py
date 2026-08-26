@@ -964,6 +964,33 @@ def get_sales_overview(db: Session, actor_user: Optional[Any] = None) -> Dict[st
     )
     avg_order_val = round(total_revenue / invoices_paid_count, 2) if invoices_paid_count > 0 else 0.0
 
+    today = datetime.now(timezone.utc).date()
+    current_month = today.replace(day=1)
+    trend = []
+    invoices_history = db.query(SalesInvoice).all()
+    for offset in range(5, -1, -1):
+        month = current_month
+        for _ in range(offset):
+            month = (month - timedelta(days=1)).replace(day=1)
+        next_month = (month.replace(day=28) + timedelta(days=4)).replace(day=1)
+        month_invoices = [
+            i for i in invoices_history
+            if i.invoice_date and month <= i.invoice_date < next_month
+        ]
+        trend.append({
+            "period": month.isoformat(),
+            "revenue": round(sum(float(i.amount_paid or 0) for i in month_invoices), 2),
+            "invoices": len(month_invoices),
+        })
+
+    current_stats = trend[-1]
+    previous_stats = trend[-2]
+
+    def variation(current: float, previous: float) -> Optional[float]:
+        if previous == 0:
+            return None if current == 0 else 100.0
+        return round(((current - previous) / abs(previous)) * 100, 1)
+
     total_quote_value = (
         db.query(func.coalesce(func.sum(SalesQuote.total_ttc), 0.0)).scalar() or 0.0
     )
@@ -998,4 +1025,11 @@ def get_sales_overview(db: Session, actor_user: Optional[Any] = None) -> Dict[st
         "total_quote_value": round(float(total_quote_value), 2),
         "quotes_accepted_count": quotes_accepted,
         "outstanding_invoices_amount": round(float(outstanding_invoices_amount), 2),
+        "sales_trend": trend,
+        "current_month_revenue": current_stats["revenue"],
+        "previous_month_revenue": previous_stats["revenue"],
+        "revenue_variation_percent": variation(current_stats["revenue"], previous_stats["revenue"]),
+        "current_month_invoices": current_stats["invoices"],
+        "previous_month_invoices": previous_stats["invoices"],
+        "invoices_variation_percent": variation(current_stats["invoices"], previous_stats["invoices"]),
     }

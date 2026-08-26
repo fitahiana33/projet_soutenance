@@ -858,11 +858,33 @@ async def get_purchases_overview(db: Session) -> Dict[str, Any]:
     analysis = await get_supplier_performance_analysis(db)
     top_supplier = analysis[0]["supplier_name"] if analysis else "N/A"
 
+    today = datetime.now(timezone.utc).date()
+    current_month = today.replace(day=1)
+    previous_month = (current_month - timedelta(days=1)).replace(day=1)
+
+    def month_total(month):
+        next_month = (month.replace(day=28) + timedelta(days=4)).replace(day=1)
+        return round(sum(
+            float(o.total_amount or 0) for o in orders
+            if o.order_date and month <= o.order_date.date() < next_month
+        ), 2)
+
+    current_month_total = month_total(current_month)
+    previous_month_total = month_total(previous_month)
+    purchase_variation = (
+        None if previous_month_total == 0 and current_month_total == 0
+        else 100.0 if previous_month_total == 0
+        else round(((current_month_total - previous_month_total) / abs(previous_month_total)) * 100, 1)
+    )
+
     return {
         "total_suppliers": len(suppliers),
         "total_purchase_amount": round(total_spent, 2),
         "pending_requisitions_count": pending_reqs,
         "active_orders_count": active_orders,
         "invoices_count": invoices,
-        "top_performing_supplier": top_supplier
+        "top_performing_supplier": top_supplier,
+        "current_month_purchase_amount": current_month_total,
+        "previous_month_purchase_amount": previous_month_total,
+        "purchase_variation_percent": purchase_variation
     }

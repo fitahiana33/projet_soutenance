@@ -252,7 +252,7 @@
 
         <div class="grid grid-cols-2 gap-4 mb-6">
           <div>
-            <label class="block text-slate-300 font-semibold text-xs mb-1">Sélectionner l'Offre</label>
+            <label class="block text-muted font-semibold text-xs mb-1">Sélectionner l'Offre</label>
             <select v-model="selectedJobId" class="input text-xs">
               <option v-for="j in jobOffers" :key="j.id_job" :value="j.id_job">
                 {{ j.title }} ({{ j.department }})
@@ -261,7 +261,7 @@
           </div>
 
           <div>
-            <label class="block text-slate-300 font-semibold text-xs mb-1">Sélectionner le Candidat</label>
+            <label class="block text-muted font-semibold text-xs mb-1">Sélectionner le Candidat</label>
             <select v-model="selectedCandidateId" class="input text-xs">
               <option v-for="c in candidates" :key="c.id_candidate" :value="c.id_candidate">
                 {{ c.first_name }} {{ c.last_name }} ({{ c.degree }})
@@ -277,12 +277,16 @@
           </AppButton>
         </div>
 
-        <div v-if="matchResult" class="p-4 bg-slate-900 border border-slate-800 rounded-lg">
+        <div v-if="matchResult" class="matching-result p-4 rounded-lg">
           <div class="flex justify-between items-center mb-3">
-            <h4 class="font-bold text-white text-sm">Score d'Adéquation Globale</h4>
-            <span class="text-xl font-bold color-success">{{ matchResult.match_score || 85 }}%</span>
+            <h4 class="font-bold text-sm">Score d'Adéquation Globale</h4>
+            <span class="matching-score text-xl font-bold">{{ Number(matchResult.matching_score_percent ?? 0).toFixed(1) }}%</span>
           </div>
-          <p class="text-xs text-slate-300 mb-2">{{ matchResult.recommendation || 'Profil fortement recommandé pour le poste.' }}</p>
+          <p class="text-xs text-muted mb-2">{{ matchResult.recommendation || 'Profil fortement recommandé pour le poste.' }}</p>
+          <div class="matching-breakdown">
+            <span>Compétences : <strong>{{ Number(matchResult.skills_match_score ?? 0).toFixed(1) }}%</strong></span>
+            <span>Expérience : <strong>{{ Number(matchResult.experience_match_score ?? 0).toFixed(1) }}%</strong></span>
+          </div>
         </div>
       </div>
     </AppCard>
@@ -706,5 +710,29 @@ onMounted(fetchData)
 .tab-btn--active {
   border-bottom-color: var(--color-primary);
   color: var(--color-primary);
+}
+
+.matching-result {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.matching-score {
+  color: var(--color-success);
+}
+
+.matching-breakdown {
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--font-size-xs);
+  gap: var(--space-6);
+  padding-top: var(--space-3);
+}
+
+.matching-breakdown strong {
+  color: var(--color-text);
 }
 </style>
