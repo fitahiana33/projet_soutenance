@@ -1,8 +1,9 @@
 <template>
   <AppLayout>
     <PageHeader
-      title="Gestion des Utilisateurs"
-      subtitle="Administration des comptes utilisateurs, attributions de rôles et privilèges"
+      title="Annuaire des Utilisateurs"
+      subtitle="Administration des comptes utilisateurs, statuts de connexion et attribution des rôles"
+      :breadcrumbs="[{ label: 'Accueil', path: '/dashboard' }, { label: 'Utilisateurs' }]"
     >
       <template #actions>
         <AppButton variant="primary" size="sm" @click="openCreateModal">
@@ -16,47 +17,45 @@
       {{ pageError }}
     </AppAlert>
 
-    <!-- Filters & Search Bar -->
-    <AppCard class="filters-card">
-      <div class="filters-bar">
-        <div class="filter-search">
-          <AppIcon name="search" size="16" class="filter-icon" />
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Rechercher par nom ou email..."
-            class="filter-input"
-          />
-        </div>
-
-        <div class="filter-controls">
-          <select v-model="selectedRole" class="filter-select">
-            <option value="">Tous les rôles</option>
-            <option v-for="r in availableRoles" :key="r.id_role" :value="r.id_role">
-              {{ r.libelle }}
-            </option>
-          </select>
-
-          <select v-model="selectedStatus" class="filter-select">
-            <option value="">Tous les statuts</option>
-            <option value="active">Actif</option>
-            <option value="inactive">Inactif</option>
-          </select>
-
-          <AppButton variant="ghost" size="sm" @click="resetFilters">
-            <span>Réinitialiser</span>
-          </AppButton>
-        </div>
-      </div>
-    </AppCard>
-
-    <!-- Users Table -->
+    <!-- Users Table with Integrated Search & Filter slot -->
     <AppTable
+      title="Liste des comptes enregistrés"
       :columns="columns"
       :items="filteredUsers"
       :loading="loading"
-      empty-text="Aucun utilisateur ne correspond à votre recherche."
+      searchable
+      v-model:searchValue="searchQuery"
+      searchPlaceholder="Rechercher par nom, prénom ou email..."
+      emptyTitle="Aucun utilisateur trouvé"
+      emptyText="Aucun compte ne correspond aux critères de recherche ou de filtre sélectionnés."
     >
+      <template #filters>
+        <div class="filters-row">
+          <div class="filter-group">
+            <label class="filter-label">Rôle système :</label>
+            <select v-model="selectedRole" class="filter-select">
+              <option value="">Tous les rôles</option>
+              <option v-for="r in availableRoles" :key="r.id_role" :value="r.id_role">
+                {{ r.libelle }}
+              </option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">Statut du compte :</label>
+            <select v-model="selectedStatus" class="filter-select">
+              <option value="">Tous les statuts</option>
+              <option value="active">Actifs uniquement</option>
+              <option value="inactive">Inactifs uniquement</option>
+            </select>
+          </div>
+
+          <AppButton v-if="selectedRole || selectedStatus || searchQuery" variant="ghost" size="sm" @click="resetFilters">
+            <span>Réinitialiser les filtres</span>
+          </AppButton>
+        </div>
+      </template>
+
       <!-- Custom User Column -->
       <template #col-name="{ item }">
         <div class="user-cell">
@@ -78,7 +77,7 @@
             :label="r.libelle"
           />
           <span v-if="!(item.roles && item.roles.length)" class="text-muted text-xs">
-            Aucun rôle
+            Aucun rôle attribué
           </span>
         </div>
       </template>
@@ -88,7 +87,7 @@
         <div class="status-cell">
           <AppBadge
             :variant="value ? 'success' : 'danger'"
-            :label="value ? 'Actif' : 'Inactif'"
+            :label="value ? 'Actif' : 'Désactivé'"
           />
           <button
             type="button"
@@ -96,7 +95,7 @@
             :title="value ? 'Désactiver le compte' : 'Réactiver le compte'"
             @click="toggleStatus(item)"
           >
-            {{ value ? 'Désactiver' : 'Réactiver' }}
+            {{ value ? 'Désactiver' : 'Activer' }}
           </button>
         </div>
       </template>
@@ -104,10 +103,10 @@
       <!-- Table Actions Slot -->
       <template #actions="{ item }">
         <div class="actions-group">
-          <button type="button" class="icon-btn" title="Éditer et attribuer rôles" @click="openEditModal(item)">
+          <button type="button" class="icon-btn" title="Modifier le compte" @click="openEditModal(item)">
             <AppIcon name="pencil" size="16" />
           </button>
-          <button type="button" class="icon-btn icon-btn--danger" title="Supprimer" @click="confirmDelete(item)">
+          <button type="button" class="icon-btn icon-btn--danger" title="Supprimer définitivement" @click="confirmDelete(item)">
             <AppIcon name="trash" size="16" />
           </button>
         </div>
@@ -117,7 +116,7 @@
     <!-- Modal Create / Edit User -->
     <AppModal
       v-model="showUserModal"
-      :title="editingUser ? 'Éditer l\'utilisateur' : 'Créer un nouvel utilisateur'"
+      :title="editingUser ? 'Modifier l\'utilisateur' : 'Créer un nouvel utilisateur'"
       size="md"
     >
       <form @submit.prevent="saveUser" class="modal-form">
@@ -135,7 +134,7 @@
           <AppInput
             id="user-lastname"
             v-model="form.name"
-            label="Nom"
+            label="Nom *"
             placeholder="Dupont"
             required
           />
@@ -145,7 +144,7 @@
           id="user-email"
           v-model="form.email"
           type="email"
-          label="Adresse Email"
+          label="Adresse Email professionnelle *"
           placeholder="jean.dupont@smarterp.com"
           required
         />
@@ -154,14 +153,14 @@
           id="user-password"
           v-model="form.password"
           type="password"
-          :label="editingUser ? 'Nouveau mot de passe (optionnel)' : 'Mot de passe'"
+          :label="editingUser ? 'Nouveau mot de passe (laisser vide pour ne pas modifier)' : 'Mot de passe initial *'"
           placeholder="••••••••"
           :required="!editingUser"
         />
 
         <!-- User ↔ Roles Multi-Assignment -->
         <div class="form-group">
-          <label class="form-label">Rôles attribués (User ↔ Roles)</label>
+          <label class="form-label">Rôles système attribués</label>
           <div class="roles-checkboxes">
             <label
               v-for="r in availableRoles"
@@ -173,8 +172,8 @@
                 :value="r.id_role"
                 v-model="form.selectedRoleIds"
               />
-              <span>{{ r.libelle }}</span>
-              <span class="role-desc">({{ r.description || 'Rôle système' }})</span>
+              <span class="font-semibold">{{ r.libelle }}</span>
+              <span class="role-desc">— {{ r.description || 'Rôle standard' }}</span>
             </label>
           </div>
         </div>
@@ -182,7 +181,7 @@
         <div class="form-checkbox">
           <label class="checkbox-label">
             <input v-model="form.is_active" type="checkbox" />
-            <span>Compte actif</span>
+            <span>Compte actif et autorisé à se connecter</span>
           </label>
         </div>
       </form>
@@ -190,17 +189,19 @@
       <template #footer>
         <AppButton variant="ghost" @click="showUserModal = false">Annuler</AppButton>
         <AppButton variant="primary" :loading="saving" @click="saveUser">
-          {{ editingUser ? 'Mettre à jour' : 'Enregistrer' }}
+          {{ editingUser ? 'Enregistrer les modifications' : 'Créer l\'utilisateur' }}
         </AppButton>
       </template>
     </AppModal>
 
     <!-- Delete Confirmation Modal -->
     <AppModal v-model="showDeleteModal" title="Confirmer la suppression" size="sm">
-      <p>Êtes-vous sûr de vouloir supprimer l'utilisateur <strong>{{ deletingUser?.first_name }} {{ deletingUser?.name }}</strong> ? Cette action est irréversible.</p>
+      <AppAlert variant="warning" title="Attention : Action irréversible">
+        Êtes-vous sûr de vouloir supprimer l'utilisateur <strong>{{ deletingUser?.first_name }} {{ deletingUser?.name }}</strong> ({{ deletingUser?.email }}) ?
+      </AppAlert>
       <template #footer>
         <AppButton variant="ghost" @click="showDeleteModal = false">Annuler</AppButton>
-        <AppButton variant="danger" :loading="deleting" @click="executeDelete">Supprimer</AppButton>
+        <AppButton variant="danger" :loading="deleting" @click="executeDelete">Supprimer le compte</AppButton>
       </template>
     </AppModal>
   </AppLayout>
@@ -211,7 +212,6 @@ import { ref, computed, onMounted } from 'vue'
 import userService from '../../services/userService'
 import AppLayout from '../../layouts/AppLayout.vue'
 import PageHeader from '../../components/ui/PageHeader.vue'
-import AppCard from '../../components/ui/AppCard.vue'
 import AppTable from '../../components/ui/AppTable.vue'
 import AppBadge from '../../components/ui/AppBadge.vue'
 import AppButton from '../../components/ui/AppButton.vue'
@@ -247,10 +247,10 @@ const form = ref({
 })
 
 const columns = [
-  { key: 'name', label: 'Utilisateur', width: '30%' },
+  { key: 'name', label: 'Utilisateur', width: '30%', sortable: true },
   { key: 'roles', label: 'Rôles Attribués', width: '25%' },
-  { key: 'is_active', label: 'Statut & Action', width: '20%' },
-  { key: 'created_at', label: 'Créé le', width: '15%' }
+  { key: 'is_active', label: 'Statut & Action', width: '25%', sortable: true },
+  { key: 'created_at', label: 'Date de Création', width: '20%', sortable: true }
 ]
 
 async function fetchData() {
@@ -411,50 +411,27 @@ async function executeDelete() {
 </script>
 
 <style scoped>
-.filters-card {
-  margin-bottom: var(--space-6);
-  padding: var(--space-3) var(--space-4);
-}
-
-.filters-bar {
+.filters-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
 }
 
-.filter-search {
-  position: relative;
+.filter-group {
   display: flex;
   align-items: center;
-  flex: 1;
-  min-width: 260px;
+  gap: var(--space-2);
 }
 
-.filter-icon {
-  position: absolute;
-  left: 12px;
+.filter-label {
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
-}
-
-.filter-input {
-  width: 100%;
-  padding: 0.5rem 0.9rem 0.5rem 2.2rem;
-  font-size: var(--font-size-sm);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background-color: var(--color-bg);
-}
-
-.filter-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+  font-weight: var(--font-weight-medium);
 }
 
 .filter-select {
-  padding: 0.5rem 0.9rem;
+  padding: 0.4rem 0.8rem;
   font-size: var(--font-size-sm);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -479,6 +456,7 @@ async function executeDelete() {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .user-details {

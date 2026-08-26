@@ -1,11 +1,19 @@
 from datetime import datetime, timezone
 from typing import Optional, List
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text
+    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Table
 )
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+
+
+product_categories = Table(
+    "product_categories",
+    Base.metadata,
+    Column("product_id", ForeignKey("products.id_product", ondelete="CASCADE"), primary_key=True),
+    Column("category_id", ForeignKey("categories.id_category", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class Category(Base):
@@ -15,7 +23,8 @@ class Category(Base):
     name = Column(String(100), nullable=False, unique=True, index=True)
     description = Column(String(255), nullable=True)
 
-    products = relationship("Product", back_populates="category")
+    products = relationship("Product", secondary=product_categories, back_populates="categories")
+    legacy_products = relationship("Product", back_populates="category")
 
 
 class Product(Base):
@@ -27,7 +36,8 @@ class Product(Base):
     description = Column(Text, nullable=True)
 
     category_id = Column(Integer, ForeignKey("categories.id_category"), nullable=True)
-    category = relationship("Category", back_populates="products")
+    category = relationship("Category", back_populates="legacy_products")
+    categories = relationship("Category", secondary=product_categories, back_populates="products")
 
     price_purchase = Column(Float, nullable=False, default=0.0)  # Prix d'achat HT
     price_sell = Column(Float, nullable=False, default=0.0)      # Prix de vente HT

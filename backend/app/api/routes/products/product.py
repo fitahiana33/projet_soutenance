@@ -132,6 +132,7 @@ async def list_products(
     category_id: Optional[int] = Query(None, description="Filtrer par catégorie"),
     status: Optional[str] = Query(None, description="Filtrer par état (ACTIF, INACTIF, REAPPRO)"),
     stock_status: Optional[str] = Query(None, description="Filtrer par état de stock (ok, low, out)"),
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("STOCK_READ"))
 ):
     try:
@@ -139,7 +140,8 @@ async def list_products(
             q=q,
             category_id=category_id,
             status=status,
-            stock_status=stock_status
+            stock_status=stock_status,
+            db=db
         )
     except Exception as e:
         logger.error(f"Error listing Dolibarr products: {e}")

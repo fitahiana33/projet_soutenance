@@ -61,6 +61,15 @@ def _requisition_to_dict(r: PurchaseRequisition) -> Dict[str, Any]:
 
 
 def _order_to_dict(o: PurchaseOrder) -> Dict[str, Any]:
+    total_received = sum(r.quantity_received for r in (o.receipts or []))
+    amount_ht = round(o.total_amount or 0.0, 2)
+    amount_tva = round(amount_ht * (o.vat_rate or 0.0) / 100.0, 2)
+    amount_ttc = round(amount_ht + amount_tva, 2)
+    displayed_status = o.status
+    if total_received > 0 and total_received < o.quantity:
+        displayed_status = "PARTIELLEMENT_RECUE"
+    elif total_received >= o.quantity and o.quantity > 0:
+        displayed_status = "RECUE"
     return {
         "id_order": o.id_order,
         "reference": o.reference,
@@ -71,10 +80,18 @@ def _order_to_dict(o: PurchaseOrder) -> Dict[str, Any]:
         "product_label": o.product_label,
         "product_ref": o.product_ref,
         "quantity": o.quantity,
+        "quantity_received": total_received,
+        "quantity_remaining": max(0, o.quantity - total_received),
         "unit_price": o.unit_price,
         "total_amount": o.total_amount,
+        "total_amount_ht": amount_ht,
+        "amount_ht": amount_ht,
+        "amount_tva": amount_tva,
+        "vat_amount": amount_tva,
+        "amount_ttc": amount_ttc,
+        "total_amount_ttc": amount_ttc,
         "vat_rate": o.vat_rate,
-        "status": o.status,
+        "status": displayed_status,
         "order_date": o.order_date.isoformat() if o.order_date else None,
         "expected_delivery_date": o.expected_delivery_date.isoformat() if o.expected_delivery_date else None,
         "actual_delivery_date": o.actual_delivery_date.isoformat() if o.actual_delivery_date else None,
@@ -91,6 +108,7 @@ def _receipt_to_dict(r: GoodsReceipt) -> Dict[str, Any]:
         "reference": r.reference,
         "order_id": r.order_id,
         "order_ref": r.order_ref,
+        "supplier_name": r.purchase_order.supplier_name if r.purchase_order else None,
         "product_label": r.product_label,
         "quantity_received": r.quantity_received,
         "quantity_expected": r.quantity_expected,
@@ -228,6 +246,78 @@ async def create_supplier(
     )
 
     return result
+
+
+async def update_supplier(
+    db: Session,
+    supplier_id: int,
+    supplier_data: Dict[str, Any],
+    actor_user_id: Optional[int] = None
+) -> Dict[str, Any]:
+    """Met à jour un fournisseur local et, si possible, sa fiche Dolibarr."""
+    supplier = db.query(Supplier).filter(Supplier.id_supplier == supplier_id).first()
+    if not supplier:
+        raise RuntimeError(f"Fournisseur #{supplier_id} non trouvé.")
+
+    old = _supplier_to_dict(supplier)
+    for field in ["name", "code", "email", "phone", "address", "city", "country", "tax_number", "status", "payment_terms_days", "notes"]:
+        if field in supplier_data and supplier_data[field] is not None:
+            setattr(supplier, field, supplier_data[field])
+
+    if supplier.dolibarr_id:
+        try:
+            await dolibarr_client.put(
+                f"thirdparties/{supplier.dolibarr_id}",
+                {
+                    "name": supplier.name,
+                    "code_fournisseur": supplier.code,
+                    "email": supplier.email or "",
+                    "phone": supplier.phone or "",
+                    "address": supplier.address or ""
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Mise à jour Dolibarr du fournisseur #{supplier_id}: {e}")
+
+    supplier.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(supplier)
+    result = _supplier_to_dict(supplier)
+    log_action(
+        db, action="UPDATE", module="ACHATS", user_id=actor_user_id,
+        target_entity=f"SUPPLIER:{supplier_id}",
+        details=f"Mise à jour fournisseur: {supplier.name}",
+        old_values=old, new_values=result
+    )
+    return result
+
+
+async def delete_supplier(
+    db: Session,
+    supplier_id: int,
+    actor_user_id: Optional[int] = None
+) -> bool:
+    """Supprime un fournisseur inutilisé ou le désactive s'il possède un historique."""
+    supplier = db.query(Supplier).filter(Supplier.id_supplier == supplier_id).first()
+    if not supplier:
+        raise RuntimeError(f"Fournisseur #{supplier_id} non trouvé.")
+
+    old = _supplier_to_dict(supplier)
+    linked_orders = db.query(PurchaseOrder).filter(PurchaseOrder.supplier_id == supplier_id).count()
+    if linked_orders:
+        supplier.status = "INACTIF"
+        supplier.updated_at = datetime.now(timezone.utc)
+        result_message = "désactivé"
+    else:
+        db.delete(supplier)
+        result_message = "supprimé"
+    db.commit()
+    log_action(
+        db, action="DELETE", module="ACHATS", user_id=actor_user_id,
+        target_entity=f"SUPPLIER:{supplier_id}",
+        details=f"Fournisseur {result_message}", old_values=old
+    )
+    return True
 
 
 # --- DEMANDES D'ACHAT (WORKFLOW ETAPE 1 & 2) ---
@@ -458,6 +548,14 @@ async def record_goods_receipt(
         raise RuntimeError(f"Commande d'achat #{receipt_data['order_id']} non trouvée.")
 
     old_order = _order_to_dict(order)
+    quantity_received = int(receipt_data["quantity_received"])
+    already_received = sum(r.quantity_received for r in (order.receipts or []))
+    quantity_remaining = order.quantity - already_received
+
+    if quantity_received > quantity_remaining:
+        raise RuntimeError(
+            f"Quantité reçue invalide : il reste seulement {quantity_remaining} unité(s) à réceptionner."
+        )
 
     last_receipt = db.query(GoodsReceipt).order_by(GoodsReceipt.id_receipt.desc()).first()
     new_id = (last_receipt.id_receipt + 1) if last_receipt else 1
@@ -477,8 +575,8 @@ async def record_goods_receipt(
         order_id=order.id_order,
         order_ref=order.reference,
         product_label=order.product_label,
-        quantity_received=receipt_data["quantity_received"],
-        quantity_expected=receipt_data.get("quantity_expected") or order.quantity,
+        quantity_received=quantity_received,
+        quantity_expected=order.quantity,
         quality_control_status=receipt_data.get("quality_control_status", "CONFORME"),
         quality_notes=receipt_data.get("quality_notes", "Contrôle effectué lors de la réception"),
         received_by_user_id=actor_user_id,
@@ -486,8 +584,10 @@ async def record_goods_receipt(
     )
     db.add(new_receipt)
 
-    order.status = "RECUE"
-    order.actual_delivery_date = now_utc
+    total_received = already_received + quantity_received
+    order.status = "RECUE" if total_received == order.quantity else "PARTIELLEMENT_RECUE"
+    if total_received == order.quantity:
+        order.actual_delivery_date = now_utc
 
     db.commit()
     db.refresh(new_receipt)
@@ -499,7 +599,7 @@ async def record_goods_receipt(
         await record_stock_movement(
             product_id=order.product_id,
             movement_type="ENTREE",
-            quantity=receipt_data["quantity_received"],
+            quantity=quantity_received,
             reference_doc=order.reference,
             comment=f"Réception Commande Achat ({ref})"
         )
@@ -521,7 +621,7 @@ async def record_goods_receipt(
         module="ACHATS",
         user_id=actor_user_id,
         target_entity=f"PURCHASE_ORDER:{order.id_order}",
-        details=f"Statut commande passée à RECUE: {order.reference}",
+        details=f"Réception cumulée {total_received}/{order.quantity}: {order.reference}",
         old_values=old_order,
         new_values=_order_to_dict(order)
     )

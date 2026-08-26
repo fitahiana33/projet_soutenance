@@ -19,15 +19,21 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// Intercepteur réponse : gère les erreurs HTTP et les 401
+// Intercepteur réponse : gère les erreurs HTTP, 401 et 403
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
+    if (error.response) {
+      if (error.response.status === 401) {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
+      } else if (error.response.status === 403) {
+        if (window.location.pathname !== '/403' && window.location.pathname !== '/login') {
+          window.location.href = '/403'
+        }
       }
     }
     return Promise.reject(error)

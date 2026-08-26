@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import require_permission, get_db
 from app.models.users.user import User
 from app.schemas.dolibarr.sync import (
     DolibarrConnectionStatusResponse,
@@ -37,7 +37,7 @@ router = APIRouter(
     summary="Tester la connexion directe avec l'API Dolibarr"
 )
 async def test_connection(
-    current_user: User = Depends(require_permission("ROLE_READ"))
+    current_user: User = Depends(require_permission("DOLIBARR_READ", "SYSTEM_READ"))
 ):
     try:
         return await dolibarr_client.test_connection()
@@ -55,10 +55,11 @@ async def test_connection(
     summary="Obtenir le statut global du module de synchronisation Dolibarr"
 )
 async def get_status(
-    current_user: User = Depends(require_permission("ROLE_READ"))
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("DOLIBARR_READ", "SYSTEM_READ"))
 ):
     try:
-        return await get_sync_summary()
+        return await get_sync_summary(db)
     except Exception as e:
         logger.error(f"Error getting Dolibarr status: {e}")
         raise HTTPException(
@@ -78,11 +79,13 @@ async def get_status(
 )
 async def trigger_sync(
     payload: SyncRequest,
-    current_user: User = Depends(require_permission("STOCK_UPDATE"))
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("DOLIBARR_SYNC"))
 ):
     try:
         user_label = f"{current_user.first_name or ''} {current_user.name}".strip() or current_user.email
         return await run_synchronization(
+            db=db,
             entities=payload.entities,
             force_full=payload.force_full,
             triggered_by=f"Manuel ({user_label})"
@@ -105,10 +108,11 @@ async def trigger_sync(
     summary="Consulter l'historique des synchronisations Dolibarr"
 )
 async def sync_history(
-    current_user: User = Depends(require_permission("ROLE_READ"))
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("DOLIBARR_READ", "SYSTEM_READ"))
 ):
     try:
-        return await get_sync_history()
+        return await get_sync_history(db)
     except Exception as e:
         logger.error(f"Error fetching Dolibarr sync history: {e}")
         raise HTTPException(
@@ -123,7 +127,7 @@ async def sync_history(
 )
 async def get_entity_data(
     entity: str,
-    current_user: User = Depends(require_permission("ROLE_READ"))
+    current_user: User = Depends(require_permission("DOLIBARR_READ", "SYSTEM_READ"))
 ):
     try:
         if entity not in ["products", "thirdparties", "orders", "invoices", "users"]:

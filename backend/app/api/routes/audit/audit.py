@@ -21,7 +21,7 @@ async def read_audit_logs(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("USER_READ"))
+    current_user: User = Depends(require_permission("AUDIT_READ"))
 ):
     return get_audit_logs(db, module=module, action=action, username=username, limit=limit, offset=offset)
 
@@ -32,6 +32,6 @@ async def read_audit_logs(
 )
 async def read_audit_stats(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("USER_READ"))
+    current_user: User = Depends(require_permission("AUDIT_READ"))
 ):
     return get_audit_stats(db)

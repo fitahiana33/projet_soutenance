@@ -254,8 +254,8 @@
               <td class="text-xs text-slate-300">{{ hol.description || '-' }}</td>
               <td>
                 <div class="flex justify-end gap-2">
-                  <button class="btn btn-secondary btn-xs" @click="openEditHolidayModal(hol)">✏️ Éditer</button>
-                  <button class="btn btn-danger btn-xs" @click="confirmDeleteHoliday(hol)">🗑️ Supprimer</button>
+                  <button class="btn btn-secondary btn-xs" @click="openEditHolidayModal(hol)"><AppIcon name="edit" size="16" /> Éditer</button>
+                  <button class="btn btn-danger btn-xs" @click="confirmDeleteHoliday(hol)"><AppIcon name="trash" size="16" /> Supprimer</button>
                 </div>
               </td>
             </tr>

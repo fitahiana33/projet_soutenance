@@ -18,14 +18,14 @@ router = APIRouter(prefix="/recruitment", tags=["Recrutement & Gestions des Tale
 
 @router.get("/overview", summary="KPIs généraux du recrutement")
 async def read_recruitment_overview(
-    current_user: User = Depends(require_permission("USER_READ"))
+    current_user: User = Depends(require_permission("HR_READ"))
 ):
     return await get_recruitment_overview()
 
 
 @router.get("/jobs", summary="Liste des offres d'emploi ouvertes")
 async def read_jobs(
-    current_user: User = Depends(require_permission("USER_READ"))
+    current_user: User = Depends(require_permission("HR_READ"))
 ):
     return await get_job_offers()
 
@@ -34,7 +34,7 @@ async def read_jobs(
 async def add_job(
     data: JobOfferCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("USER_WRITE"))
+    current_user: User = Depends(require_permission("HR_CREATE", "HR_MANAGE"))
 ):
     res = await create_job_offer(data.model_dump())
     log_action(
@@ -50,7 +50,7 @@ async def edit_job(
     job_id: int,
     data: JobOfferUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("USER_WRITE"))
+    current_user: User = Depends(require_permission("HR_UPDATE", "HR_MANAGE"))
 ):
     try:
         res = await update_job_offer(job_id, data.model_dump(exclude_unset=True))
@@ -69,7 +69,7 @@ async def change_job_status(
     job_id: int,
     status_val: str = Query(..., alias="status", description="Nouveau statut (OUVERT, EN_COURS, FERME)"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("USER_WRITE"))
+    current_user: User = Depends(require_permission("HR_UPDATE", "HR_MANAGE"))
 ):
     try:
         res = await update_job_offer_status(job_id, status_val)
@@ -87,7 +87,7 @@ async def change_job_status(
 async def remove_job(
     job_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("USER_WRITE"))
+    current_user: User = Depends(require_permission("HR_MANAGE"))
 ):
     try:
         await delete_job_offer(job_id)
@@ -106,7 +106,7 @@ async def change_candidate_status(
     candidate_id: int,
     status_val: str = Query(..., alias="status", description="Nouveau statut du candidat"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("USER_WRITE"))
+    current_user: User = Depends(require_permission("HR_UPDATE", "HR_MANAGE"))
 ):
     try:
         res = await update_candidate_status(candidate_id, status_val)
@@ -122,7 +122,7 @@ async def change_candidate_status(
 
 @router.get("/candidates", summary="Banque de candidatures et CVs")
 async def read_candidates(
-    current_user: User = Depends(require_permission("USER_READ"))
+    current_user: User = Depends(require_permission("HR_READ"))
 ):
     return await get_candidates()
 
@@ -131,7 +131,7 @@ async def read_candidates(
 async def add_candidate(
     data: CandidateCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("USER_WRITE"))
+    current_user: User = Depends(require_permission("HR_CREATE", "HR_MANAGE"))
 ):
     res = await create_candidate(data.model_dump())
     log_action(

@@ -425,12 +425,21 @@ def calculate_payroll(
     }
 
 
-# ==============================================================================
-# EMPLOYES
-# ==============================================================================
+def _has_management_access(user: Optional[Any], allowed_perms: List[str]) -> bool:
+    if not user:
+        return True
+    role_names = {r.libelle.upper() for r in getattr(user, "roles", [])}
+    if "ADMIN" in role_names:
+        return True
+    user_perms = {p.code.upper() for r in getattr(user, "roles", []) for p in getattr(r, "permissions", [])}
+    return any(perm.upper() in user_perms for perm in allowed_perms)
 
-def get_all_employees(db: Session) -> List[Dict[str, Any]]:
-    employees = db.query(Employee).order_by(Employee.last_name.asc()).all()
+
+def get_all_employees(db: Session, actor_user: Optional[Any] = None) -> List[Dict[str, Any]]:
+    query = db.query(Employee)
+    if actor_user and not _has_management_access(actor_user, ["HR_READ", "HR_MANAGE", "EMPLOYEE_MANAGE"]):
+        query = query.filter(Employee.user_id == actor_user.id_user)
+    employees = query.order_by(Employee.last_name.asc()).all()
     return [_employee_to_dict(e) for e in employees]
 
 
@@ -621,8 +630,15 @@ def delete_employee(db: Session, id_employee: int) -> bool:
 # TEMPS ET ABSENCES
 # ==============================================================================
 
-def get_time_off_requests(db: Session) -> List[Dict[str, Any]]:
-    items = db.query(TimeOffRequest).order_by(TimeOffRequest.created_at.desc()).all()
+def get_time_off_requests(db: Session, actor_user: Optional[Any] = None) -> List[Dict[str, Any]]:
+    query = db.query(TimeOffRequest)
+    if actor_user and not _has_management_access(actor_user, ["HOLIDAY_MANAGE", "HR_MANAGE", "HR_READ"]):
+        emp = db.query(Employee).filter(Employee.user_id == actor_user.id_user).first()
+        emp_id = emp.id_employee if emp else -1
+        query = query.filter(
+            (TimeOffRequest.employee_id == emp_id) | (TimeOffRequest.requested_by_user_id == actor_user.id_user)
+        )
+    items = query.order_by(TimeOffRequest.created_at.desc()).all()
     return [_timeoff_to_dict(t) for t in items]
 
 
@@ -725,8 +741,13 @@ def validate_time_off_request(
 # GESTION DE LA PAIE
 # ==============================================================================
 
-def get_payrolls(db: Session) -> List[Dict[str, Any]]:
-    items = db.query(PayrollEntry).order_by(PayrollEntry.created_at.desc()).all()
+def get_payrolls(db: Session, actor_user: Optional[Any] = None) -> List[Dict[str, Any]]:
+    query = db.query(PayrollEntry)
+    if actor_user and not _has_management_access(actor_user, ["PAYROLL_MANAGE", "HR_MANAGE", "HR_READ"]):
+        emp = db.query(Employee).filter(Employee.user_id == actor_user.id_user).first()
+        emp_id = emp.id_employee if emp else -1
+        query = query.filter(PayrollEntry.employee_id == emp_id)
+    items = query.order_by(PayrollEntry.created_at.desc()).all()
     return [_payroll_to_dict(p) for p in items]
 
 

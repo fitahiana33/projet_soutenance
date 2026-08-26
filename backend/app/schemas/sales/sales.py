@@ -49,6 +49,10 @@ class SaleOrderResponse(BaseModel):
     customer_name: str
     total_amount_ht: float
     total_amount_ttc: float
+    total_tva: float = 0.0
+    vat_rate: float = 20.0
+    discount_percent: float = 0.0
+    items: List[Dict[str, Any]] = Field(default_factory=list)
     items_count: int
     status: str  # BROUILLON, VALIDEE, EN_LIVRAISON, LIVREE, FACTUREE, ANNULEE
     stock_reserved: bool
@@ -59,15 +63,31 @@ class SaleInvoiceCreate(BaseModel):
     order_id: int
     payment_mode: str = Field("VIREMENT", description="VIREMENT, CHEQUE, ESPÈCES, CB")
     notes: Optional[str] = None
+    invoice_date: Optional[str] = None
+
+
+class SalePaymentUpdate(BaseModel):
+    amount_paid: float = Field(..., ge=0.0)
+    payment_mode: Optional[str] = None
+    payment_ref: Optional[str] = None
 
 
 class SaleInvoiceResponse(BaseModel):
     id_invoice: int
     invoice_ref: str
     order_id: int
+    order_ref: Optional[str] = None
+    customer_id: Optional[int] = None
     customer_name: str
     total_amount_ttc: float
+    total_amount_ht: float = 0.0
+    total_tva: float = 0.0
+    vat_rate: float = 20.0
+    discount_percent: float = 0.0
+    items: List[Dict[str, Any]] = Field(default_factory=list)
     amount_paid: float
     balance_due: float
     status: str  # NON_PAYEE, PARTIELLEMENT_PAYEE, PAYEE
+    payment_mode: Optional[str] = None
+    invoice_date: Optional[str] = None
     created_at: str

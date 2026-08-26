@@ -37,6 +37,7 @@ function toggleSidebar() {
 .app-body {
   display: flex;
   flex: 1;
+  min-width: 0;
 }
 
 .app-content {
@@ -44,5 +45,12 @@ function toggleSidebar() {
   padding: var(--space-6);
   max-width: 100%;
   overflow-x: auto;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .app-content {
+    padding: var(--space-4);
+  }
 }
 </style>

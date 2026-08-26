@@ -17,7 +17,7 @@
           <AppIcon name="plus" size="16" />
           <span>Nouvelle Commande</span>
         </AppButton>
-        <AppButton variant="primary" size="sm" @click="showInvoiceModal = true">
+        <AppButton variant="primary" size="sm" @click="openInvoiceModal">
           <AppIcon name="dollar-sign" size="16" />
           <span>Émettre une Vente</span>
         </AppButton>
@@ -86,25 +86,25 @@
           :class="['tab-btn', { 'tab-btn--active': activeTab === 'sales' }]" 
           @click="activeTab = 'sales'"
         >
-          💰 Ventes Réalisées
+          <AppIcon name="dollar-sign" size="18" /> Ventes Réalisées
         </button>
         <button 
           :class="['tab-btn', { 'tab-btn--active': activeTab === 'orders' }]" 
           @click="activeTab = 'orders'"
         >
-          🛒 Pipeline Commandes
+          <AppIcon name="shopping-cart" size="18" /> Pipeline Commandes
         </button>
         <button 
           :class="['tab-btn', { 'tab-btn--active': activeTab === 'quotes' }]" 
           @click="activeTab = 'quotes'"
         >
-          📑 Devis & Pro-formas
+          <AppIcon name="file-text" size="18" /> Devis & Pro-formas
         </button>
         <button 
           :class="['tab-btn', { 'tab-btn--active': activeTab === 'customers' }]" 
           @click="activeTab = 'customers'"
         >
-          👥 Référentiel Clients
+          <AppIcon name="users" size="18" /> Référentiel Clients
         </button>
       </div>
 
@@ -115,7 +115,7 @@
             <AppIcon name="dollar-sign" size="20" />
             <span>Registre des Ventes Réalisées &amp; Règlements</span>
           </h3>
-          <AppButton variant="primary" size="sm" @click="showInvoiceModal = true">
+          <AppButton variant="primary" size="sm" @click="openInvoiceModal">
             <AppIcon name="plus" size="14" />
             <span>Émettre une Facture</span>
           </AppButton>
@@ -151,12 +151,18 @@
                     {{ inv.status }}
                   </span>
                 </td>
-                <td class="text-muted text-xs">{{ formatDate(inv.created_at) }}</td>
+                <td class="text-muted text-xs">{{ formatDate(inv.invoice_date || inv.created_at) }}</td>
                 <td>
-                  <AppButton variant="ghost" size="xs" @click="openDetailModal(inv, 'invoice')">
-                    <AppIcon name="eye" size="12" />
-                    <span>Détails</span>
-                  </AppButton>
+                  <div class="flex items-center gap-1">
+                    <AppButton variant="ghost" size="xs" @click="openDetailModal(inv, 'invoice')">
+                      <AppIcon name="eye" size="12" />
+                      <span>Détails</span>
+                    </AppButton>
+                    <AppButton v-if="Number(inv.balance_due || 0) > 0" variant="success" size="xs" @click="openPaymentModal(inv)">
+                      <AppIcon name="dollar-sign" size="12" />
+                      <span>Encaisser</span>
+                    </AppButton>
+                  </div>
                 </td>
               </tr>
               <tr v-if="invoices.length === 0">
@@ -212,7 +218,7 @@
                     {{ ord.status }}
                   </span>
                 </td>
-                <td class="text-muted text-xs">{{ formatDate(ord.created_at) }}</td>
+                <td class="text-muted text-xs">{{ formatDate(ord.order_date || ord.created_at) }}</td>
                 <td>
                   <div class="flex items-center gap-1">
                     <AppButton variant="ghost" size="xs" @click="openDetailModal(ord, 'order')">
@@ -296,7 +302,7 @@
                 <td>{{ formatCurrency(q.total_amount_ht || q.total_amount_ttc / 1.2) }}</td>
                 <td class="font-bold text-amber-400">{{ formatCurrency(q.total_amount_ttc) }}</td>
                 <td><span class="badge badge-warning">{{ q.status }}</span></td>
-                <td class="text-muted text-xs">{{ formatDate(q.created_at) }}</td>
+                <td class="text-muted text-xs">{{ formatDate(q.quote_date || q.created_at) }}</td>
                 <td>
                   <div class="flex items-center gap-1">
                     <AppButton variant="ghost" size="xs" @click="openDetailModal(q, 'quote')">
@@ -334,7 +340,7 @@
             <AppIcon name="users" size="20" />
             <span>Répertoire Général des Clients</span>
           </h3>
-          <AppButton variant="primary" size="sm" @click="showCustomerModal = true">
+          <AppButton variant="primary" size="sm" @click="openCreateCustomerModal">
             <AppIcon name="plus" size="14" />
             <span>Ajouter un Client</span>
           </AppButton>
@@ -351,6 +357,7 @@
                 <th>Conditions Règlement</th>
                 <th>CA Généré</th>
                 <th>Statut</th>
+                <th class="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -361,10 +368,18 @@
                 <td class="text-xs">{{ c.city || 'Antananarivo' }}</td>
                 <td><span class="badge badge-info">{{ c.payment_terms }}</span></td>
                 <td class="font-bold color-success">{{ formatCurrency(c.total_revenue_generated) }}</td>
-                <td><span class="badge badge-success">{{ c.status }}</span></td>
+                <td><span :class="['badge', c.status === 'ACTIF' ? 'badge-success' : 'badge-warning']">{{ c.status }}</span></td>
+                <td class="text-right whitespace-nowrap">
+                  <button class="icon-btn" title="Modifier le client" @click="openEditCustomerModal(c)">
+                    <AppIcon name="edit" size="15" />
+                  </button>
+                  <button class="icon-btn icon-btn--danger" title="Supprimer ou désactiver le client" @click="confirmDeleteCustomer(c)">
+                    <AppIcon name="trash-2" size="15" />
+                  </button>
+                </td>
               </tr>
               <tr v-if="customers.length === 0">
-                <td colspan="7" class="text-center py-6 text-muted">Aucun client répertorié.</td>
+                <td colspan="8" class="text-center py-6 text-muted">Aucun client répertorié.</td>
               </tr>
             </tbody>
           </table>
@@ -373,8 +388,8 @@
     </AppCard>
 
     <!-- Modal Nouveau Client -->
-    <AppModal v-model="showCustomerModal" title="Nouveau Client Tiers" size="sm">
-      <form @submit.prevent="handleCreateCustomer" class="space-y-4 text-xs">
+    <AppModal v-model="showCustomerModal" :title="editingCustomer ? 'Modifier le client' : 'Nouveau Client Tiers'" size="sm">
+      <form @submit.prevent="handleSaveCustomer" class="space-y-4 text-xs">
         <AppInput
           id="cust-name"
           v-model="customerForm.name"
@@ -382,6 +397,7 @@
           placeholder="ex: Malagasy Enterprise"
           required
         />
+        <AppInput id="cust-code" v-model="customerForm.code_client" label="Code client" placeholder="ex: CLI-001" />
         <AppInput
           id="cust-email"
           v-model="customerForm.email"
@@ -400,18 +416,33 @@
           label="Ville"
           placeholder="ex: Antananarivo"
         />
+        <AppInput id="cust-address" v-model="customerForm.address" label="Adresse" placeholder="Adresse complète" />
         <div>
-          <label class="block text-slate-300 font-semibold mb-1">Conditions de Règlement *</label>
-          <select v-model="customerForm.payment_terms" class="input" required>
-            <option value="CASH">Comptant à la livraison</option>
-            <option value="30_DAYS">30 jours fin de mois</option>
-            <option value="60_DAYS">60 jours net</option>
-          </select>
+          <AppInput
+            id="cust-payment-terms"
+            v-model="customerForm.payment_terms"
+            label="Conditions de règlement *"
+            placeholder="ex: 30 jours fin de mois, comptant, 60 jours"
+            required
+          />
         </div>
       </form>
       <template #footer>
         <AppButton variant="ghost" @click="showCustomerModal = false">Annuler</AppButton>
-        <AppButton variant="primary" :loading="saving" @click="handleCreateCustomer">Enregistrer le Client</AppButton>
+        <AppButton variant="primary" :loading="saving" @click="handleSaveCustomer">{{ editingCustomer ? 'Enregistrer les modifications' : 'Enregistrer le Client' }}</AppButton>
+      </template>
+    </AppModal>
+
+    <AppModal v-model="showDeleteCustomerModal" title="Confirmer la suppression" size="sm">
+      <p>
+        Voulez-vous supprimer le client <strong>{{ deletingCustomer?.name }}</strong> ?
+      </p>
+      <p class="text-sm text-muted mt-2">
+        Si ce client possède un historique commercial, il sera désactivé afin de préserver les commandes et factures.
+      </p>
+      <template #footer>
+        <AppButton variant="ghost" @click="showDeleteCustomerModal = false">Annuler</AppButton>
+        <AppButton variant="danger" :loading="saving" @click="handleDeleteCustomer">Confirmer</AppButton>
       </template>
     </AppModal>
 
@@ -420,11 +451,7 @@
       <form @submit.prevent="handleCreateOrder" class="space-y-4 text-xs">
         <div>
           <label class="block text-slate-300 font-semibold mb-1">Sélectionner le Client *</label>
-          <select v-model="orderForm.customer_id" class="input" required>
-            <option v-for="c in customers" :key="c.id_customer" :value="c.id_customer">
-              {{ c.name }} ({{ c.code_client }})
-            </option>
-          </select>
+          <SearchableSelect v-model="orderForm.customer_id" :options="customers" value-key="id_customer" label-key="name" :search-keys="['code_client', 'email']" placeholder="Rechercher un client..." required />
         </div>
 
         <div class="border border-slate-700/60 rounded-lg p-3 bg-slate-800/40 space-y-3">
@@ -439,7 +466,8 @@
           <div v-for="(line, idx) in orderForm.items" :key="idx" class="grid grid-cols-12 gap-2 items-center bg-slate-900/50 p-2 rounded border border-slate-700/30">
             <div class="col-span-5">
               <label class="block text-[10px] text-muted mb-0.5" v-if="idx === 0">Produit SKU</label>
-              <select v-model="line.product_id" class="input" @change="onOrderLineProductSelect(line)" required>
+              <SearchableSelect v-model="line.product_id" :options="products" value-key="id_product" label-key="label" :search-keys="['reference']" placeholder="Rechercher un produit..." required @change="onOrderLineProductSelect(line)" />
+              <select v-model="line.product_id" class="input" style="display: none" aria-hidden="true" @change="onOrderLineProductSelect(line)" required>
                 <option v-for="p in products" :key="p.id_product" :value="p.id_product">
                   {{ p.reference }} — {{ p.label }} ({{ p.price }} €)
                 </option>
@@ -449,9 +477,13 @@
               <label class="block text-[10px] text-muted mb-0.5" v-if="idx === 0">Quantité</label>
               <input v-model.number="line.quantity" type="number" min="1" class="input" placeholder="Qté" required />
             </div>
-            <div class="col-span-3">
+            <div class="col-span-2">
               <label class="block text-[10px] text-muted mb-0.5" v-if="idx === 0">PU HT (€)</label>
               <input v-model.number="line.unit_price" type="number" min="0" step="0.01" class="input" placeholder="Prix" required />
+            </div>
+            <div class="col-span-2">
+              <label class="block text-[10px] text-muted mb-0.5" v-if="idx === 0">Remise (%)</label>
+              <input v-model.number="line.discount_percent" type="number" min="0" max="100" step="0.01" class="input" placeholder="0" />
             </div>
             <div class="col-span-1 text-center pt-2">
               <button type="button" class="text-rose-400 hover:text-rose-300 font-bold p-1 text-sm" @click="removeOrderLine(idx)" v-if="orderForm.items.length > 1" title="Supprimer la ligne">
@@ -461,7 +493,8 @@
           </div>
 
           <div class="flex justify-between items-center text-xs text-slate-300 pt-2 border-t border-slate-700/40">
-            <span>Total HT : <strong class="text-amber-400">{{ formatCurrency(orderTotalHt) }}</strong></span>
+            <span>Total HT après remise : <strong class="text-amber-400">{{ formatCurrency(orderTotalHt) }}</strong></span>
+            <span>Remise : <strong class="text-rose-300">{{ formatCurrency(orderDiscountTotal) }}</strong></span>
             <span>Total TTC (TVA 20%) : <strong class="text-emerald-400 font-bold text-sm">{{ formatCurrency(orderTotalTtc) }}</strong></span>
           </div>
         </div>
@@ -477,7 +510,8 @@
       <form @submit.prevent="handleCreateQuote" class="space-y-4 text-xs">
         <div>
           <label class="block text-slate-300 font-semibold mb-1">Client Destinataire *</label>
-          <select v-model="quoteForm.customer_id" class="input" required>
+          <SearchableSelect v-model="quoteForm.customer_id" :options="customers" value-key="id_customer" label-key="name" :search-keys="['code_client', 'email']" placeholder="Rechercher un client..." required />
+          <select v-model="quoteForm.customer_id" class="input" style="display: none" aria-hidden="true" required>
             <option v-for="c in customers" :key="c.id_customer" :value="c.id_customer">
               {{ c.name }} ({{ c.code_client }})
             </option>
@@ -496,7 +530,8 @@
           <div v-for="(line, idx) in quoteForm.items" :key="idx" class="grid grid-cols-12 gap-2 items-center bg-slate-900/50 p-2 rounded border border-slate-700/30">
             <div class="col-span-5">
               <label class="block text-[10px] text-muted mb-0.5" v-if="idx === 0">Produit SKU</label>
-              <select v-model="line.product_id" class="input" @change="onQuoteLineProductSelect(line)" required>
+              <SearchableSelect v-model="line.product_id" :options="products" value-key="id_product" label-key="label" :search-keys="['reference']" placeholder="Rechercher un produit..." required @change="onQuoteLineProductSelect(line)" />
+              <select v-model="line.product_id" class="input" style="display: none" aria-hidden="true" @change="onQuoteLineProductSelect(line)" required>
                 <option v-for="p in products" :key="p.id_product" :value="p.id_product">
                   {{ p.reference }} — {{ p.label }} ({{ p.price }} €)
                 </option>
@@ -506,9 +541,13 @@
               <label class="block text-[10px] text-muted mb-0.5" v-if="idx === 0">Quantité</label>
               <input v-model.number="line.quantity" type="number" min="1" class="input" placeholder="Qté" required />
             </div>
-            <div class="col-span-3">
+            <div class="col-span-2">
               <label class="block text-[10px] text-muted mb-0.5" v-if="idx === 0">PU HT (€)</label>
               <input v-model.number="line.unit_price" type="number" min="0" step="0.01" class="input" placeholder="Prix" required />
+            </div>
+            <div class="col-span-2">
+              <label class="block text-[10px] text-muted mb-0.5" v-if="idx === 0">Remise (%)</label>
+              <input v-model.number="line.discount_percent" type="number" min="0" max="100" step="0.01" class="input" placeholder="0" />
             </div>
             <div class="col-span-1 text-center pt-2">
               <button type="button" class="text-rose-400 hover:text-rose-300 font-bold p-1 text-sm" @click="removeQuoteLine(idx)" v-if="quoteForm.items.length > 1" title="Supprimer la ligne">
@@ -518,7 +557,8 @@
           </div>
 
           <div class="flex justify-between items-center text-xs text-slate-300 pt-2 border-t border-slate-700/40">
-            <span>Total HT : <strong class="text-amber-400">{{ formatCurrency(quoteTotalHt) }}</strong></span>
+            <span>Total HT après remise : <strong class="text-amber-400">{{ formatCurrency(quoteTotalHt) }}</strong></span>
+            <span>Remise : <strong class="text-rose-300">{{ formatCurrency(quoteDiscountTotal) }}</strong></span>
             <span>Total TTC (TVA 20%) : <strong class="text-emerald-400 font-bold text-sm">{{ formatCurrency(quoteTotalTtc) }}</strong></span>
           </div>
         </div>
@@ -550,10 +590,33 @@
             <option value="CB">Carte Bancaire</option>
           </select>
         </div>
+        <AppInput id="invoice-date" v-model="invoiceForm.invoice_date" type="date" label="Date de facture *" required />
       </form>
       <template #footer>
         <AppButton variant="ghost" @click="showInvoiceModal = false">Annuler</AppButton>
         <AppButton variant="primary" :loading="saving" @click="handleCreateInvoice">Valider la Facture</AppButton>
+      </template>
+    </AppModal>
+
+    <AppModal v-model="showPaymentModal" title="Enregistrer un règlement client" size="sm">
+      <form @submit.prevent="savePayment" class="space-y-4 text-xs">
+        <p class="text-muted">Facture : <strong>{{ paymentForm.invoice_ref }}</strong></p>
+        <p class="text-muted">Reste à payer : <strong class="text-amber-400">{{ formatCurrency(paymentForm.balance_due) }}</strong></p>
+        <AppInput id="payment-amount" v-model.number="paymentForm.amount_paid" type="number" min="0" :max="paymentForm.total_ttc" step="0.01" label="Total payé cumulé (€) *" required />
+        <AppInput id="payment-ref" v-model="paymentForm.payment_ref" label="Référence du règlement" placeholder="N° chèque, virement..." />
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Mode de règlement</label>
+          <select v-model="paymentForm.payment_mode" class="input">
+            <option value="VIREMENT">Virement bancaire</option>
+            <option value="CHEQUE">Chèque</option>
+            <option value="ESPECES">Espèces</option>
+            <option value="CB">Carte bancaire</option>
+          </select>
+        </div>
+      </form>
+      <template #footer>
+        <AppButton variant="ghost" @click="showPaymentModal = false">Annuler</AppButton>
+        <AppButton variant="primary" :loading="saving" @click="savePayment">Enregistrer le paiement</AppButton>
       </template>
     </AppModal>
 
@@ -563,11 +626,11 @@
         <div class="grid grid-cols-2 gap-4 bg-slate-800/60 p-3 rounded-lg border border-slate-700/60">
           <div>
             <span class="text-muted block text-[11px]">Client Destinataire :</span>
-            <strong class="text-white text-sm block mt-0.5">{{ selectedDetailItem.customer_name || 'Client' }}</strong>
+            <strong class="color-primary text-sm block mt-0.5">{{ detailCustomerName }}</strong>
           </div>
           <div class="text-right">
             <span class="text-muted block text-[11px]">Date :</span>
-            <span class="text-slate-300">{{ formatDate(selectedDetailItem.created_at || selectedDetailItem.order_date) }}</span>
+            <span class="text-slate-300">{{ formatDate(selectedDetailItem.invoice_date || selectedDetailItem.quote_date || selectedDetailItem.order_date || selectedDetailItem.created_at) }}</span>
             <div class="mt-1">
               <span :class="['badge', getStatusBadgeClass(selectedDetailItem.status)]">{{ selectedDetailItem.status }}</span>
             </div>
@@ -586,22 +649,24 @@
                   <th>Produit / Désignation</th>
                   <th class="text-right">Quantité</th>
                   <th class="text-right">Prix Unitaire HT</th>
+                  <th class="text-right">Remise</th>
                   <th class="text-right">Montant Total HT</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="(it, idx) in parsedDetailItems" :key="idx">
-                  <td class="font-semibold text-white">
-                    {{ it.label || it.reference || ('Produit ID #' + (it.product_id || (idx + 1))) }}
+                  <td class="font-semibold color-primary">
+                    {{ detailProductLabel(it, idx) }}
                   </td>
-                  <td class="text-right font-semibold">{{ it.quantity || 1 }}</td>
-                  <td class="text-right">{{ formatCurrency(it.unit_price || 0) }}</td>
+                  <td class="text-right font-semibold">{{ it.quantity ?? it.qty ?? 1 }}</td>
+                  <td class="text-right">{{ formatCurrency(it.unit_price ?? it.unit_price_ht ?? it.price ?? 0) }}</td>
+                  <td class="text-right text-rose-300">{{ Number(it.discount_percent || 0) }} %<br />-{{ formatCurrency(it.discount_amount || 0) }}</td>
                   <td class="text-right font-bold text-amber-400">
-                    {{ formatCurrency((it.quantity || 1) * (it.unit_price || 0)) }}
+                    {{ formatCurrency(it.total_line_ht ?? it.line_total ?? ((it.quantity ?? it.qty ?? 1) * (it.unit_price ?? it.unit_price_ht ?? it.price ?? 0))) }}
                   </td>
                 </tr>
                 <tr v-if="parsedDetailItems.length === 0">
-                  <td colspan="4" class="text-center py-4 text-muted">
+                  <td colspan="5" class="text-center py-4 text-muted">
                     1 ligne forfaitaire enregistrée — Total HT : {{ formatCurrency(selectedDetailItem.total_amount_ht || selectedDetailItem.total_ht) }}
                   </td>
                 </tr>
@@ -610,10 +675,14 @@
           </div>
         </div>
 
-        <div class="flex justify-end gap-6 bg-slate-900/80 p-3 rounded-lg border border-slate-700/50 text-xs">
-          <div><span class="text-muted">Total HT :</span> <strong class="text-white ml-2">{{ formatCurrency(selectedDetailItem.total_amount_ht || selectedDetailItem.total_ht) }}</strong></div>
-          <div><span class="text-muted">TVA (20%) :</span> <strong class="text-slate-300 ml-2">{{ formatCurrency((selectedDetailItem.total_amount_ht || selectedDetailItem.total_ht) * 0.20) }}</strong></div>
+        <div class="detail-summary flex justify-end gap-6 bg-slate-900/80 p-3 rounded-lg border border-slate-700/50 text-xs">
+          <div><span class="text-muted">Remise :</span> <strong class="text-rose-300 ml-2">{{ Number(selectedDetailItem.discount_percent || 0) }} %</strong></div>
+          <div><span class="text-muted">Économie :</span> <strong class="text-rose-300 ml-2">-{{ formatCurrency(detailDiscountTotal) }}</strong></div>
+          <div><span class="text-muted">Total HT :</span> <strong class="color-primary ml-2">{{ formatCurrency(selectedDetailItem.total_amount_ht || selectedDetailItem.total_ht) }}</strong></div>
+          <div><span class="text-muted">TVA :</span> <strong class="text-slate-300 ml-2">{{ formatCurrency(selectedDetailItem.total_tva ?? selectedDetailItem.vat_amount ?? ((selectedDetailItem.total_amount_ht || selectedDetailItem.total_ht) * 0.20)) }}</strong></div>
           <div><span class="text-muted">Total TTC :</span> <strong class="text-emerald-400 text-sm ml-2 font-bold">{{ formatCurrency(selectedDetailItem.total_amount_ttc || selectedDetailItem.total_ttc) }}</strong></div>
+          <div v-if="selectedDetailItem.amount_paid !== undefined"><span class="text-muted">Payé :</span> <strong class="color-success ml-2">{{ formatCurrency(selectedDetailItem.amount_paid) }}</strong></div>
+          <div v-if="selectedDetailItem.balance_due !== undefined"><span class="text-muted">Reste :</span> <strong class="color-warning ml-2">{{ formatCurrency(selectedDetailItem.balance_due) }}</strong></div>
         </div>
       </div>
       <template #footer>
@@ -636,6 +705,8 @@ import AppIcon from '../../components/ui/AppIcon.vue'
 import AppInput from '../../components/ui/AppInput.vue'
 import AppModal from '../../components/ui/AppModal.vue'
 import AppAlert from '../../components/ui/AppAlert.vue'
+import SearchableSelect from '../../components/ui/SearchableSelect.vue'
+import { confirmAction } from '../../utils/actionConfirm'
 
 const activeTab = ref('sales')
 const overview = ref({})
@@ -646,32 +717,47 @@ const customers = ref([])
 const products = ref([])
 
 const showCustomerModal = ref(false)
+const showDeleteCustomerModal = ref(false)
 const showOrderModal = ref(false)
 const showQuoteModal = ref(false)
 const showInvoiceModal = ref(false)
+const showPaymentModal = ref(false)
 const showDetailModal = ref(false)
 const selectedDetailItem = ref(null)
+const editingCustomer = ref(null)
+const deletingCustomer = ref(null)
 const saving = ref(false)
 
 const pageError = ref('')
 const pageSuccess = ref('')
 
+function getTodayInput() {
+  const now = new Date()
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+  return local.toISOString().slice(0, 10)
+}
+
 const customerForm = ref({
-  name: '', email: '', phone: '', city: '', payment_terms: '30_DAYS'
+  name: '', code_client: '', email: '', phone: '', address: '', city: '', payment_terms: '30_DAYS'
 })
 
 const orderForm = ref({
   customer_id: 1,
-  items: [{ product_id: 1, quantity: 1, unit_price: 100.0 }]
+  items: [{ product_id: 1, quantity: 1, unit_price: 100.0, discount_percent: 0 }]
 })
 
 const quoteForm = ref({
   customer_id: 1,
-  items: [{ product_id: 1, quantity: 1, unit_price: 100.0 }]
+  items: [{ product_id: 1, quantity: 1, unit_price: 100.0, discount_percent: 0 }]
 })
 
 const invoiceForm = ref({
-  order_id: 1, payment_mode: 'VIREMENT'
+  order_id: 1, payment_mode: 'VIREMENT', invoice_date: getTodayInput()
+})
+
+const paymentForm = ref({
+  invoice_id: null, invoice_ref: '', amount_paid: 0, total_ttc: 0, balance_due: 0,
+  payment_mode: 'VIREMENT', payment_ref: ''
 })
 
 const availableOrdersForInvoice = computed(() => {
@@ -679,16 +765,20 @@ const availableOrdersForInvoice = computed(() => {
 })
 
 const orderTotalHt = computed(() => {
-  return (orderForm.value.items || []).reduce((sum, it) => sum + ((it.quantity || 0) * (it.unit_price || 0)), 0)
+  return (orderForm.value.items || []).reduce((sum, it) => sum + ((it.quantity || 0) * (it.unit_price || 0) * (1 - (it.discount_percent || 0) / 100)), 0)
 })
+
+const orderDiscountTotal = computed(() => (orderForm.value.items || []).reduce((sum, it) => sum + ((it.quantity || 0) * (it.unit_price || 0) * (it.discount_percent || 0) / 100), 0))
 
 const orderTotalTtc = computed(() => {
   return Math.round((orderTotalHt.value * 1.2 + Number.EPSILON) * 100) / 100
 })
 
 const quoteTotalHt = computed(() => {
-  return (quoteForm.value.items || []).reduce((sum, it) => sum + ((it.quantity || 0) * (it.unit_price || 0)), 0)
+  return (quoteForm.value.items || []).reduce((sum, it) => sum + ((it.quantity || 0) * (it.unit_price || 0) * (1 - (it.discount_percent || 0) / 100)), 0)
 })
+
+const quoteDiscountTotal = computed(() => (quoteForm.value.items || []).reduce((sum, it) => sum + ((it.quantity || 0) * (it.unit_price || 0) * (it.discount_percent || 0) / 100), 0))
 
 const quoteTotalTtc = computed(() => {
   return Math.round((quoteTotalHt.value * 1.2 + Number.EPSILON) * 100) / 100
@@ -704,12 +794,30 @@ const parsedDetailItems = computed(() => {
   return []
 })
 
+const detailDiscountTotal = computed(() => parsedDetailItems.value.reduce((sum, item) => sum + Number(item.discount_amount || 0), 0))
+
+const detailCustomerName = computed(() => {
+  const item = selectedDetailItem.value || {}
+  if (item.customer_name) return item.customer_name
+  const customer = customers.value.find(c => Number(c.id_customer) === Number(item.customer_id))
+  return customer?.name || (item.customer_id ? `Client #${item.customer_id}` : 'Client non renseigné')
+})
+
+function detailProductLabel(item, index) {
+  if (item.label || item.product_label || item.designation || item.reference) {
+    return item.label || item.product_label || item.designation || item.reference
+  }
+  const product = products.value.find(p => Number(p.id_product) === Number(item.product_id))
+  return product?.label || product?.reference || (item.product_id ? `Produit #${item.product_id}` : `Produit #${index + 1}`)
+}
+
 function addOrderLine() {
   const p = products.value[0] || {}
   orderForm.value.items.push({
     product_id: p.id_product || 1,
     quantity: 1,
-    unit_price: p.price || 100.0
+    unit_price: p.price || 100.0,
+    discount_percent: 0
   })
 }
 
@@ -731,7 +839,8 @@ function addQuoteLine() {
   quoteForm.value.items.push({
     product_id: p.id_product || 1,
     quantity: 1,
-    unit_price: p.price || 100.0
+    unit_price: p.price || 100.0,
+    discount_percent: 0
   })
 }
 
@@ -751,6 +860,40 @@ function onQuoteLineProductSelect(line) {
 function openDetailModal(item, type) {
   selectedDetailItem.value = item
   showDetailModal.value = true
+}
+
+function openPaymentModal(invoice) {
+  paymentForm.value = {
+    invoice_id: invoice.id_invoice,
+    invoice_ref: invoice.invoice_ref,
+    amount_paid: Number(invoice.amount_paid || 0) + Number(invoice.balance_due || 0),
+    total_ttc: Number(invoice.total_amount_ttc || 0),
+    balance_due: Number(invoice.balance_due || 0),
+    payment_mode: invoice.payment_mode || 'VIREMENT',
+    payment_ref: ''
+  }
+  showPaymentModal.value = true
+}
+
+async function savePayment() {
+  if (!confirmAction('Confirmer l’enregistrement de ce règlement client ?')) return
+  saving.value = true
+  pageError.value = ''
+  pageSuccess.value = ''
+  try {
+    await salesService.updateInvoicePayment(paymentForm.value.invoice_id, {
+      amount_paid: Number(paymentForm.value.amount_paid || 0),
+      payment_mode: paymentForm.value.payment_mode,
+      payment_ref: paymentForm.value.payment_ref || null
+    })
+    showPaymentModal.value = false
+    pageSuccess.value = 'Règlement enregistré avec succès.'
+    await fetchData()
+  } catch (e) {
+    pageError.value = e.response?.data?.detail || 'Erreur lors de l’enregistrement du paiement.'
+  } finally {
+    saving.value = false
+  }
 }
 
 async function fetchData() {
@@ -778,8 +921,8 @@ async function fetchData() {
     }
     if (products.value.length > 0) {
       const p = products.value[0]
-      orderForm.value.items = [{ product_id: p.id_product, quantity: 1, unit_price: p.price || 100.0 }]
-      quoteForm.value.items = [{ product_id: p.id_product, quantity: 1, unit_price: p.price || 100.0 }]
+      orderForm.value.items = [{ product_id: p.id_product, quantity: 1, unit_price: p.price || 100.0, discount_percent: 0 }]
+      quoteForm.value.items = [{ product_id: p.id_product, quantity: 1, unit_price: p.price || 100.0, discount_percent: 0 }]
     }
     if (orders.value.length > 0) {
       invoiceForm.value.order_id = orders.value[0].id_order
@@ -789,19 +932,74 @@ async function fetchData() {
   }
 }
 
-async function handleCreateCustomer() {
+function resetCustomerForm() {
+  customerForm.value = {
+    name: '', code_client: '', email: '', phone: '', address: '', city: '', payment_terms: '30_DAYS'
+  }
+}
+
+function openCreateCustomerModal() {
+  editingCustomer.value = null
+  resetCustomerForm()
+  showCustomerModal.value = true
+}
+
+function openEditCustomerModal(customer) {
+  editingCustomer.value = customer
+  customerForm.value = {
+    name: customer.name || '',
+    code_client: customer.code_client || '',
+    email: customer.email || '',
+    phone: customer.phone || '',
+    address: customer.address || '',
+    city: customer.city || '',
+    payment_terms: customer.payment_terms || '30_DAYS'
+  }
+  showCustomerModal.value = true
+}
+
+function confirmDeleteCustomer(customer) {
+  deletingCustomer.value = customer
+  showDeleteCustomerModal.value = true
+}
+
+async function handleSaveCustomer() {
   if (!customerForm.value.name) return
   saving.value = true
   pageError.value = ''
   pageSuccess.value = ''
   try {
-    await salesService.createCustomer(customerForm.value)
-    pageSuccess.value = 'Client enregistré avec succès !'
+    if (editingCustomer.value) {
+      await salesService.updateCustomer(editingCustomer.value.id_customer, customerForm.value)
+      pageSuccess.value = 'Client modifié avec succès !'
+    } else {
+      await salesService.createCustomer(customerForm.value)
+      pageSuccess.value = 'Client enregistré avec succès !'
+    }
     showCustomerModal.value = false
-    customerForm.value = { name: '', email: '', phone: '', city: '', payment_terms: '30_DAYS' }
+    editingCustomer.value = null
+    resetCustomerForm()
     await fetchData()
   } catch (e) {
     pageError.value = e.response?.data?.detail || 'Erreur lors de la création du client.'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleDeleteCustomer() {
+  if (!deletingCustomer.value) return
+  saving.value = true
+  pageError.value = ''
+  pageSuccess.value = ''
+  try {
+    await salesService.deleteCustomer(deletingCustomer.value.id_customer)
+    pageSuccess.value = 'Client supprimé ou désactivé avec succès !'
+    showDeleteCustomerModal.value = false
+    deletingCustomer.value = null
+    await fetchData()
+  } catch (e) {
+    pageError.value = e.response?.data?.detail || 'Erreur lors de la suppression du client.'
   } finally {
     saving.value = false
   }
@@ -854,7 +1052,7 @@ async function convertQuoteToOrder(quote) {
   pageSuccess.value = ''
   try {
     const itemDetail = quote.items && quote.items.length > 0
-      ? quote.items.map(it => ({ product_id: it.product_id || 1, quantity: it.quantity || 1, unit_price: it.unit_price || 100 }))
+      ? quote.items.map(it => ({ product_id: it.product_id || 1, quantity: it.quantity || 1, unit_price: it.unit_price || 100, discount_percent: it.discount_percent || 0 }))
       : [{ product_id: 1, quantity: 1, unit_price: quote.total_amount_ttc / 1.2 }]
 
     await salesService.createOrder({
@@ -874,10 +1072,18 @@ async function convertQuoteToOrder(quote) {
 
 function openInvoiceModalForOrder(ord) {
   invoiceForm.value.order_id = ord.id_order
+  invoiceForm.value.invoice_date = getTodayInput()
+  showInvoiceModal.value = true
+}
+
+function openInvoiceModal() {
+  invoiceForm.value.invoice_date = getTodayInput()
   showInvoiceModal.value = true
 }
 
 async function changeOrderStatus(orderId, newStatus) {
+  const labels = { VALIDEE: 'valider', ANNULEE: 'annuler' }
+  if (!confirmAction(`Voulez-vous vraiment ${labels[newStatus] || 'modifier'} cette commande ?`)) return
   saving.value = true
   pageError.value = ''
   pageSuccess.value = ''
@@ -894,15 +1100,17 @@ async function changeOrderStatus(orderId, newStatus) {
 
 async function handleCreateInvoice() {
   if (!invoiceForm.value.order_id) return
+  if (!confirmAction('Voulez-vous vraiment comptabiliser cette facture client ?')) return
   saving.value = true
   pageError.value = ''
   pageSuccess.value = ''
   try {
     await salesService.createInvoice({
       order_id: invoiceForm.value.order_id,
-      payment_mode: invoiceForm.value.payment_mode
+      payment_mode: invoiceForm.value.payment_mode,
+      invoice_date: invoiceForm.value.invoice_date
     })
-    pageSuccess.value = 'Facture client émise et enregistrée comme payée !'
+    pageSuccess.value = 'Facture client émise avec succès !'
     showInvoiceModal.value = false
     await fetchData()
   } catch (e) {
@@ -996,5 +1204,14 @@ onMounted(fetchData)
 .tab-btn--active {
   border-bottom-color: var(--color-primary);
   color: var(--color-primary);
+}
+.detail-summary {
+  flex-wrap: wrap;
+}
+.detail-summary > div {
+  min-width: 105px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 </style>

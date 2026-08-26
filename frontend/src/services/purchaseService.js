@@ -26,6 +26,14 @@ const purchaseService = {
     return api.post('/purchases/suppliers', payload)
   },
 
+  updateSupplier(id, payload) {
+    return api.put(`/purchases/suppliers/${id}`, payload)
+  },
+
+  deleteSupplier(id) {
+    return api.delete(`/purchases/suppliers/${id}`)
+  },
+
   // ── Requisitions ──────────────────────────────────────────────────────────
   getRequisitions() {
     return api.get('/purchases/requisitions')

@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 
 from app.services.dolibarr.client import dolibarr_client
 from app.services.products.product_service import get_all_products
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -11,9 +12,9 @@ logger = logging.getLogger(__name__)
 _product_lots_store: List[Dict[str, Any]] = []
 
 
-async def get_stock_overview() -> Dict[str, Any]:
+async def get_stock_overview(db: Optional[Session] = None) -> Dict[str, Any]:
     """Calcule l'analyse globale du stock en temps réel depuis Dolibarr."""
-    prods = await get_all_products()
+    prods = await get_all_products(db=db)
     
     total_products = len(prods)
     total_physical = sum(p.get("stock_quantity", 0) for p in prods)

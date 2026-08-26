@@ -31,6 +31,11 @@ defineProps({
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  border-color: #c9d5e5;
 }
 
 .card--flat {
@@ -55,6 +60,7 @@ defineProps({
 
 .card__body {
   padding: var(--space-6);
+  min-width: 0;
 }
 
 .card__footer {

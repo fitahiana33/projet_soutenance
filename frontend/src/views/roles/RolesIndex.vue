@@ -1,15 +1,15 @@
 <template>
   <AppLayout>
     <PageHeader
-      title="Rôles & Permissions"
-      subtitle="Gestion des niveaux d'accès, affectation des privilèges et matrice de sécurité"
+      :title="isPermissionsPage ? 'Permissions Système' : 'Rôles & Habilitations'"
+      :subtitle="isPermissionsPage ? 'Catalogue des droits disponibles dans l’application' : 'Gestion des rôles et affectation des droits d’accès'"
     >
       <template #actions>
-        <AppButton variant="secondary" size="sm" @click="openCreatePermissionModal">
+        <AppButton v-if="isPermissionsPage" variant="secondary" size="sm" @click="openCreatePermissionModal">
           <AppIcon name="plus" size="16" />
           <span>Nouvelle Permission</span>
         </AppButton>
-        <AppButton variant="primary" size="sm" @click="openCreateRoleModal">
+        <AppButton v-else variant="primary" size="sm" @click="openCreateRoleModal">
           <AppIcon name="plus" size="16" />
           <span>Nouveau Rôle</span>
         </AppButton>
@@ -21,8 +21,8 @@
     </AppAlert>
 
     <!-- Roles Grid Cards -->
-    <div class="roles-grid">
-      <AppCard v-for="role in roles" :key="role.id_role || role.id" class="role-card">
+    <div v-if="!isPermissionsPage" class="roles-grid">
+      <AppCard v-for="role in paginatedRoles" :key="role.id_role || role.id" class="role-card">
         <template #header>
           <div class="role-card__header">
             <div class="role-title-group">
@@ -64,8 +64,17 @@
       </AppCard>
     </div>
 
+    <div v-if="!isPermissionsPage" class="list-pagination">
+      <span>{{ roleRangeLabel }}</span>
+      <div>
+        <button type="button" :disabled="rolePage === 1" @click="rolePage--">Précédent</button>
+        <strong>Page {{ rolePage }} / {{ roleTotalPages }}</strong>
+        <button type="button" :disabled="rolePage === roleTotalPages" @click="rolePage++">Suivant</button>
+      </div>
+    </div>
+
     <!-- Permissions Reference Table with Interactive CRUD -->
-    <AppCard class="matrix-card">
+    <AppCard v-if="isPermissionsPage" class="matrix-card">
       <template #header>
         <div class="matrix-card-header">
           <h3 class="card-title">Catalogue des Permissions Système</h3>
@@ -87,7 +96,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="perm in allPermissions" :key="perm.id_permission">
+            <tr v-for="perm in paginatedPermissions" :key="perm.id_permission">
               <td class="res-id">#{{ perm.id_permission }}</td>
               <td class="res-code font-mono"><code>{{ perm.code }}</code></td>
               <td>{{ perm.description || 'Aucune description' }}</td>
@@ -117,6 +126,14 @@
             </tr>
           </tbody>
         </table>
+      </div>
+      <div class="list-pagination matrix-pagination">
+        <span>{{ permissionRangeLabel }}</span>
+        <div>
+          <button type="button" :disabled="permissionPage === 1" @click="permissionPage--">Précédent</button>
+          <strong>Page {{ permissionPage }} / {{ permissionTotalPages }}</strong>
+          <button type="button" :disabled="permissionPage === permissionTotalPages" @click="permissionPage++">Suivant</button>
+        </div>
       </div>
     </AppCard>
 
@@ -228,7 +245,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import userService from '../../services/userService'
 import AppLayout from '../../layouts/AppLayout.vue'
 import PageHeader from '../../components/ui/PageHeader.vue'
@@ -242,6 +260,21 @@ import AppAlert from '../../components/ui/AppAlert.vue'
 
 const roles = ref([])
 const allPermissions = ref([])
+const route = useRoute()
+const isPermissionsPage = computed(() => route.path === '/permissions')
+const rolePage = ref(1)
+const permissionPage = ref(1)
+const pageSize = 10
+
+const roleTotalPages = computed(() => Math.max(1, Math.ceil(roles.value.length / pageSize)))
+const permissionTotalPages = computed(() => Math.max(1, Math.ceil(allPermissions.value.length / pageSize)))
+const paginatedRoles = computed(() => roles.value.slice((rolePage.value - 1) * pageSize, rolePage.value * pageSize))
+const paginatedPermissions = computed(() => allPermissions.value.slice((permissionPage.value - 1) * pageSize, permissionPage.value * pageSize))
+const roleRangeLabel = computed(() => `${roles.value.length ? (rolePage.value - 1) * pageSize + 1 : 0}–${Math.min(rolePage.value * pageSize, roles.value.length)} sur ${roles.value.length}`)
+const permissionRangeLabel = computed(() => `${allPermissions.value.length ? (permissionPage.value - 1) * pageSize + 1 : 0}–${Math.min(permissionPage.value * pageSize, allPermissions.value.length)} sur ${allPermissions.value.length}`)
+
+watch(roles, () => { if (rolePage.value > roleTotalPages.value) rolePage.value = roleTotalPages.value })
+watch(allPermissions, () => { if (permissionPage.value > permissionTotalPages.value) permissionPage.value = permissionTotalPages.value })
 
 const showRoleModal = ref(false)
 const showDeleteModal = ref(false)
@@ -453,6 +486,38 @@ async function executeDeletePermission() {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: var(--space-6);
   margin-bottom: var(--space-8);
+}
+
+.list-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0 1.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+.list-pagination > div {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.list-pagination button {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.7rem;
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.list-pagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.matrix-pagination {
+  margin: 1rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
 }
 
 .role-card__header {

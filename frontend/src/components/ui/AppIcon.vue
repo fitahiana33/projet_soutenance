@@ -65,12 +65,12 @@
     </g>
 
     <!-- Pencil / Edit -->
-    <g v-else-if="name === 'pencil'">
+    <g v-else-if="name === 'pencil' || name === 'edit'">
       <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
     </g>
 
     <!-- Trash / Delete -->
-    <g v-else-if="name === 'trash'">
+    <g v-else-if="name === 'trash' || name === 'trash-2'">
       <polyline points="3 6 5 6 21 6" />
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </g>
@@ -103,6 +103,60 @@
     <g v-else-if="name === 'trend-up'">
       <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
       <polyline points="17 6 23 6 23 12" />
+    </g>
+
+    <!-- Common action and business icons -->
+    <g v-else-if="name === 'refresh'">
+      <path d="M20 11a8 8 0 0 0-14.9-3L3 11" />
+      <path d="M3 4v7h7" />
+      <path d="M4 13a8 8 0 0 0 14.9 3L21 13" />
+      <path d="M21 20v-7h-7" />
+    </g>
+    <g v-else-if="name === 'eye'">
+      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z" />
+      <circle cx="12" cy="12" r="2.5" />
+    </g>
+    <g v-else-if="name === 'x'">
+      <line x1="6" y1="6" x2="18" y2="18" />
+      <line x1="18" y1="6" x2="6" y2="18" />
+    </g>
+    <g v-else-if="name === 'chevron-down'">
+      <polyline points="6 9 12 15 18 9" />
+    </g>
+    <g v-else-if="name === 'file-text'">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="8" y1="13" x2="16" y2="13" />
+      <line x1="8" y1="17" x2="16" y2="17" />
+    </g>
+    <g v-else-if="name === 'shopping-cart'">
+      <circle cx="9" cy="20" r="1" />
+      <circle cx="19" cy="20" r="1" />
+      <path d="M3 4h2l2.5 11h10l2-8H6" />
+    </g>
+    <g v-else-if="name === 'folder'">
+      <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </g>
+    <g v-else-if="name === 'settings'">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.7 1.7-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.1h-2.4v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1-1.7-1.7.1-.1A1.7 1.7 0 0 0 8.4 15a1.7 1.7 0 0 0-1.6-1H6.7v-2.4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L8 8.6l1.7-1.7.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6v-.1h2.4v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1 1.7 1.7-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1V14h-.1a1.7 1.7 0 0 0-1.6 1z" />
+    </g>
+    <g v-else-if="name === 'alert-circle'">
+      <circle cx="12" cy="12" r="9" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </g>
+    <g v-else-if="name === 'clock'">
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15 14" />
+    </g>
+    <g v-else-if="name === 'package'">
+      <path d="m16.5 9.4-9-5.2M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+      <path d="M3.3 7 12 12l8.7-5M12 22V12" />
+    </g>
+    <g v-else-if="name === 'dollar-sign'">
+      <line x1="12" y1="2" x2="12" y2="22" />
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H7" />
     </g>
 
     <!-- Default fallback dot -->

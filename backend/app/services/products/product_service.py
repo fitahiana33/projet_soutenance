@@ -1,7 +1,9 @@
 import logging
+import json
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
+from app.models.sales.sales import SalesOrder
 
 from app.services.dolibarr.client import dolibarr_client
 
@@ -11,7 +13,7 @@ logger = logging.getLogger(__name__)
 async def get_all_categories() -> List[Dict[str, Any]]:
     """Récupère en temps réel la liste des catégories directement depuis Dolibarr REST API."""
     try:
-        cats = await dolibarr_client.get("categories")
+        cats = await dolibarr_client.get("categories", params={"type": "1"})
         if cats and isinstance(cats, list):
             return [
                 {
@@ -27,12 +29,55 @@ async def get_all_categories() -> List[Dict[str, Any]]:
         return []
 
 
+async def _get_product_category_index() -> Dict[int, List[Dict[str, Any]]]:
+    """Construit un index produit -> categories via l'API categories de Dolibarr."""
+    index: Dict[int, List[Dict[str, Any]]] = {}
+    try:
+        categories = await get_all_categories()
+        for category in categories:
+            category_id = int(category["id_category"])
+            objects = await dolibarr_client.get(
+                f"categories/{category_id}/objects",
+                params={"type": "product"}
+            )
+            for obj in objects:
+                object_id = obj.get("id") if isinstance(obj, dict) else obj
+                if object_id is None:
+                    continue
+                index.setdefault(int(object_id), []).append(category)
+    except Exception as e:
+        logger.warning(f"Impossible de reconstruire les associations produit-categorie: {e}")
+    return index
+
+
+async def _get_categories_for_product(
+    product_id: int,
+    category_index: Optional[Dict[int, List[Dict[str, Any]]]] = None
+) -> List[Dict[str, Any]]:
+    """Lit les categories d'un produit avec fallback pour les versions Dolibarr incompatibles."""
+    try:
+        linked = await dolibarr_client.get(f"products/{product_id}/categories")
+        if linked:
+            return [
+                {
+                    "id_category": int(c.get("id")),
+                    "name": c.get("label", c.get("name", f"Categorie #{c.get('id')}")),
+                    "description": c.get("description", "")
+                }
+                for c in linked
+                if isinstance(c, dict) and c.get("id") is not None
+            ]
+    except Exception as e:
+        logger.warning(f"Lecture directe des categories du produit #{product_id} impossible: {e}")
+    return (category_index or {}).get(int(product_id), [])
+
+
 async def create_category(name: str, description: Optional[str] = None) -> Dict[str, Any]:
     """Crée une catégorie synchrone directement dans Dolibarr via `POST /categories`."""
     payload = {
         "label": name,
         "description": description or "",
-        "type": "0"  # 0 = Produit
+        "type": "1"  # 1 = Produit dans Dolibarr
     }
 
     try:
@@ -54,7 +99,7 @@ async def update_category(category_id: int, name: str, description: Optional[str
     payload = {
         "label": name,
         "description": description or "",
-        "type": "0"
+        "type": "1"
     }
 
     try:
@@ -103,7 +148,8 @@ async def get_all_products(
     q: Optional[str] = None,
     category_id: Optional[int] = None,
     status: Optional[str] = None,
-    stock_status: Optional[str] = None
+    stock_status: Optional[str] = None,
+    db: Optional[Session] = None
 ) -> List[Dict[str, Any]]:
     """
     Récupère en temps réel les Produits et Stocks directement depuis l'API REST Dolibarr.
@@ -112,11 +158,25 @@ async def get_all_products(
     try:
         doli_prods = await dolibarr_client.get_products()
         mapped = []
+        reserved_by_product: Dict[int, int] = {}
+        if db is not None:
+            active_orders = db.query(SalesOrder).filter(
+                SalesOrder.status.in_(["VALIDEE", "CONFIRMEE", "EN_PREPARATION", "EN_LIVRAISON"])
+            ).all()
+            for order in active_orders:
+                try:
+                    items = json.loads(order.items_json or "[]")
+                    for item in items:
+                        pid = int(item.get("product_id"))
+                        reserved_by_product[pid] = reserved_by_product.get(pid, 0) + int(float(item.get("quantity", 0)))
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    logger.warning("Impossible de calculer une réservation pour la commande #%s", order.id_order)
+        category_index = await _get_product_category_index()
         if doli_prods and isinstance(doli_prods, list):
             for p in doli_prods:
                 pid = int(p.get("id"))
                 stock_qty = 0
-                stock_res = 0
+                stock_res = reserved_by_product.get(pid, 0)
                 
                 try:
                     stk_info = await dolibarr_client.get(f"products/{pid}/stock")
@@ -130,7 +190,9 @@ async def get_all_products(
                     "reference": p.get("ref", f"DOL-{pid}"),
                     "label": p.get("label", "Produit Dolibarr"),
                     "description": p.get("description", ""),
-                    "category_id": category_id,
+                    "category_id": None,
+                    "category_ids": [],
+                    "categories": [],
                     "price_purchase": float(p.get("cost_price", 0.0) or 0.0),
                     "price_sell": float(p.get("price", 0.0) or 0.0),
                     "status": "ACTIF" if str(p.get("status_buy", "1")) == "1" else "INACTIF",
@@ -142,6 +204,23 @@ async def get_all_products(
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 })
+                try:
+                    linked_categories = await _get_categories_for_product(pid, category_index)
+                    categories = [
+                        {
+                            "id_category": int(c.get("id_category", c.get("id"))),
+                            "name": c.get("name", c.get("label", "")),
+                            "description": c.get("description", "")
+                        }
+                        for c in linked_categories
+                        if c.get("id_category", c.get("id")) is not None
+                    ]
+                    mapped[-1]["categories"] = categories
+                    mapped[-1]["category_ids"] = [c["id_category"] for c in categories]
+                    mapped[-1]["category_id"] = categories[0]["id_category"] if categories else None
+                    mapped[-1]["category"] = categories[0] if categories else None
+                except Exception as category_error:
+                    logger.warning(f"Impossible de lire les categories du produit #{pid}: {category_error}")
         return _apply_filters(mapped, q, category_id, status, stock_status)
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des produits depuis Dolibarr API: {e}")
@@ -163,7 +242,10 @@ def _apply_filters(
             if term in p.get("label", "").lower() or term in p.get("reference", "").lower() or term in p.get("description", "").lower()
         ]
     if category_id is not None:
-        filtered = [p for p in filtered if p.get("category_id") == category_id]
+        filtered = [
+            p for p in filtered
+            if category_id in p.get("category_ids", []) or p.get("category_id") == category_id
+        ]
     if status:
         filtered = [p for p in filtered if p.get("status") == status.upper()]
     if stock_status:
@@ -193,12 +275,29 @@ async def get_product_by_id(product_id: int) -> Dict[str, Any]:
         except Exception:
             stock_qty = int(float(p.get("stock_real", 0) or 0))
 
+        linked_categories = await _get_categories_for_product(
+            product_id,
+            await _get_product_category_index()
+        )
+        categories = [
+            {
+                "id_category": int(c.get("id_category", c.get("id"))),
+                "name": c.get("name", c.get("label", "")),
+                "description": c.get("description", "")
+            }
+            for c in linked_categories
+            if c.get("id_category", c.get("id")) is not None
+        ]
+
         return {
             "id_product": int(p.get("id")),
             "reference": p.get("ref", f"DOL-{p.get('id')}"),
             "label": p.get("label", "Produit Dolibarr"),
             "description": p.get("description", ""),
-            "category_id": None,
+            "category_id": categories[0]["id_category"] if categories else None,
+            "category_ids": [c["id_category"] for c in categories],
+            "categories": categories,
+            "category": categories[0] if categories else None,
             "price_purchase": float(p.get("cost_price", 0.0) or 0.0),
             "price_sell": float(p.get("price", 0.0) or 0.0),
             "status": "ACTIF" if str(p.get("status_buy", "1")) == "1" else "INACTIF",
@@ -233,6 +332,11 @@ async def create_product(product_data: Dict[str, Any]) -> Dict[str, Any]:
         logger.info(f"Création du produit '{product_data['reference']}' dans Dolibarr API")
         res = await dolibarr_client.post("products", payload)
         prod_id = res if isinstance(res, int) else (res.get("id") if isinstance(res, dict) else 1)
+        category_ids = set(product_data.get("category_ids") or [])
+        if product_data.get("category_id"):
+            category_ids.add(int(product_data["category_id"]))
+        for category_id in category_ids:
+            await dolibarr_client.post(f"categories/{int(category_id)}/objects/product/{int(prod_id)}", {})
         return await get_product_by_id(int(prod_id))
     except Exception as e:
         logger.error(f"Échec création produit dans Dolibarr: {e}", exc_info=True)
@@ -250,7 +354,19 @@ async def update_product(product_id: int, product_data: Dict[str, Any]) -> Dict[
 
     try:
         logger.info(f"Mise à jour du produit #{product_id} dans Dolibarr API")
-        await dolibarr_client.put(f"products/{product_id}", payload)
+        if payload:
+            await dolibarr_client.put(f"products/{product_id}", payload)
+
+        if "category_ids" in product_data or "category_id" in product_data:
+            desired_ids = set(product_data.get("category_ids") or [])
+            if product_data.get("category_id"):
+                desired_ids.add(int(product_data["category_id"]))
+            current_categories = await dolibarr_client.get(f"products/{product_id}/categories")
+            current_ids = {int(c["id"]) for c in current_categories if c.get("id") is not None}
+            for category_id in desired_ids - current_ids:
+                await dolibarr_client.post(f"categories/{int(category_id)}/objects/product/{int(product_id)}", {})
+            for category_id in current_ids - desired_ids:
+                await dolibarr_client.delete(f"categories/{int(category_id)}/objects/product/{int(product_id)}")
         return await get_product_by_id(product_id)
     except Exception as e:
         logger.error(f"Échec modification produit #{product_id} dans Dolibarr: {e}", exc_info=True)

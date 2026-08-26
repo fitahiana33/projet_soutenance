@@ -33,9 +33,10 @@ router = APIRouter(prefix="/stocks", tags=["Gestion des Stocks & Inventaires"])
     summary="Obtenir la synthèse globale des stocks (métriques, alertes et valorisation)"
 )
 async def read_stock_overview(
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("STOCK_READ"))
 ):
-    return await get_stock_overview()
+    return await get_stock_overview(db=db)
 
 
 @router.get(
@@ -59,7 +60,7 @@ async def read_stock_movements(
 )
 async def create_stock_movement(
     data: StockMovementCreate,
-    current_user: User = Depends(require_permission("STOCK_WRITE"))
+    current_user: User = Depends(require_permission("STOCK_UPDATE"))
 ):
     try:
         res = await record_stock_movement(
@@ -120,7 +121,7 @@ async def read_product_lots(
 )
 async def create_lot(
     data: ProductLotCreate,
-    current_user: User = Depends(require_permission("STOCK_WRITE"))
+    current_user: User = Depends(require_permission("STOCK_UPDATE"))
 ):
     res = await create_product_lot(data.model_dump())
     return {

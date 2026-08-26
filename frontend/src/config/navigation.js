@@ -1,16 +1,20 @@
 /**
- * Navigation centralisée de l'application Smart ERP pour Grande Entreprise
+ * Navigation centralisée — Smart ERP
+ * Les noms de menu correspondent exactement aux titres des pages (guide UX).
+ * Chaque entrée inclut ses permissions RBAC pour le filtrage dynamique dans AppSidebar.
  */
 
 export const navigationSections = [
   {
-    header: "PILOTAGE & DECISION",
+    header: "PILOTAGE & DÉCISION",
     items: [
       {
-        name: "Tableau de bord Direction",
+        name: "Tableau de bord",
+        description: "Vue d'ensemble stratégique et KPIs",
         path: "/dashboard",
         icon: "dashboard",
-        badge: "KPI"
+        badge: null,
+        permissions: ["DASHBOARD_READ"]
       }
     ]
   },
@@ -19,30 +23,38 @@ export const navigationSections = [
     items: [
       {
         name: "Achats & Approvisionnements",
+        description: "Demandes, commandes, réceptions, factures fournisseurs",
         path: "/purchases",
         icon: "shopping-cart",
-        badge: "Flux"
+        badge: null,
+        permissions: ["PURCHASE_READ", "PURCHASE_CREATE", "PURCHASE_UPDATE", "PURCHASE_VALIDATE"]
       },
       {
-        name: "Stocks & Inventaires",
+        name: "Suivi des Stocks",
+        description: "Inventaire, mouvements, valorisation CUMP/FIFO",
         path: "/stocks",
         icon: "box",
-        badge: "CUMP/FIFO"
+        badge: null,
+        permissions: ["STOCK_READ", "STOCK_UPDATE", "STOCK_MANAGE"]
       },
       {
         name: "Référentiel Produits",
+        description: "Catalogue produits et catégories",
         icon: "package",
         badge: null,
+        permissions: ["PRODUCT_READ", "CATEGORY_READ", "PRODUCT_CREATE"],
         children: [
           {
             name: "Catalogue Produits",
             path: "/products",
-            icon: "package"
+            icon: "package",
+            permissions: ["PRODUCT_READ", "PRODUCT_CREATE"]
           },
           {
             name: "Catégories & Familles",
             path: "/products/categories",
-            icon: "folder"
+            icon: "folder",
+            permissions: ["CATEGORY_READ", "CATEGORY_CREATE"]
           }
         ]
       }
@@ -52,10 +64,12 @@ export const navigationSections = [
     header: "VENTES & CLIENTS",
     items: [
       {
-        name: "Ventes & Commandes Clients",
+        name: "Ventes & Commandes",
+        description: "Devis, commandes clients, livraisons, facturation",
         path: "/sales",
         icon: "dollar-sign",
-        badge: "CA"
+        badge: null,
+        permissions: ["SALES_READ", "SALES_CREATE", "SALES_VALIDATE"]
       }
     ]
   },
@@ -64,49 +78,69 @@ export const navigationSections = [
     items: [
       {
         name: "Gestion RH & Paie",
+        description: "Employés, congés, paie, évaluations",
         path: "/hr",
         icon: "users",
-        badge: "Social"
+        badge: null,
+        permissions: ["HR_READ", "EMPLOYEE_READ", "PAYROLL_READ", "HOLIDAY_READ"]
       },
       {
         name: "Recrutement & Talents",
+        description: "Offres d'emploi, candidatures, scoring",
         path: "/recruitment",
         icon: "shield",
-        badge: "Matching"
+        badge: null,
+        permissions: ["HR_READ", "HR_MANAGE"]
       }
     ]
   },
   {
-    header: "GOUVERNANCE & AUDIT",
+    header: "GOUVERNANCE & SÉCURITÉ",
     items: [
       {
         name: "Annuaire Utilisateurs",
+        description: "Comptes, statuts, attributions de rôles",
         path: "/users",
         icon: "users",
-        badge: "RBAC"
+        badge: null,
+        permissions: ["USER_READ", "USER_CREATE", "USER_UPDATE"]
       },
       {
-        name: "Habilitations & Rôles",
+        name: "Rôles & Habilitations",
+        description: "Créer et administrer les rôles utilisateurs",
         path: "/roles",
         icon: "shield",
-        badge: null
+        badge: null,
+        permissions: ["ROLE_READ", "ROLE_CREATE", "ROLE_UPDATE"]
+      },
+      {
+        name: "Permissions Système",
+        description: "Catalogue des droits d’accès par fonctionnalité",
+        path: "/permissions",
+        icon: "key",
+        badge: null,
+        permissions: ["ROLE_READ", "PERMISSION_MANAGE"]
       },
       {
         name: "Journal d'Audit",
+        description: "Traçabilité des actions et événements",
         path: "/audit",
         icon: "clock",
-        badge: "Sécurité"
+        badge: null,
+        permissions: ["AUDIT_READ"]
       }
     ]
   },
   {
-    header: "SYSTEME & PARAMETRAGE",
+    header: "SYSTÈME & CONFIGURATION",
     items: [
       {
-        name: "Réglages & Paramètres System",
+        name: "Paramètres Système",
+        description: "Règles métier, fiscalité, intégrations",
         path: "/system",
         icon: "settings",
-        badge: "Config"
+        badge: null,
+        permissions: ["SYSTEM_READ", "SYSTEM_MANAGE"]
       }
     ]
   }

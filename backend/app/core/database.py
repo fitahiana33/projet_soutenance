@@ -36,6 +36,12 @@ def init_db():
     from app.models.hr.recruitment import JobOffer, Candidate  # noqa: F401
     from app.models.system.parameter import SystemParameter  # noqa: F401
     from app.models.system.notification import Notification  # noqa: F401
+    from app.models.system.sync_log import SyncLog  # noqa: F401
+    from app.models.ai.prediction import AIPrediction  # noqa: F401
+    from app.models.ai.anomaly import AIAnomaly  # noqa: F401
+    from app.models.ai.recommendation import AIRecommendation  # noqa: F401
+    from app.models.ai.simulation import AISimulation  # noqa: F401
+    from app.models.ai.snapshot import AnalyticsSnapshot  # noqa: F401
     from app.models.products.product import Product, Category, StockMovement  # noqa: F401
     from app.models.stocks.lots import ProductLot  # noqa: F401
     from app.models.purchases.purchase import (  # noqa: F401

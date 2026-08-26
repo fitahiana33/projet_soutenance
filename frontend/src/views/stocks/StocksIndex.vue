@@ -372,6 +372,7 @@ import AppIcon from '../../components/ui/AppIcon.vue'
 import AppInput from '../../components/ui/AppInput.vue'
 import AppModal from '../../components/ui/AppModal.vue'
 import AppAlert from '../../components/ui/AppAlert.vue'
+import { confirmAction } from '../../utils/actionConfirm'
 
 const activeTab = ref('overview')
 const overview = ref({})
@@ -610,6 +611,7 @@ async function saveMovement() {
     modalError.value = 'Veuillez sélectionner un produit et saisir une quantité.'
     return
   }
+  if (!confirmAction('Confirmer ce mouvement de stock ? La quantité sera modifiée.')) return
 
   savingMvt.value = true
   modalError.value = ''
