@@ -3,6 +3,8 @@
     <PageHeader
       title="Gestion des Stocks & Inventaires"
       subtitle="Analyse globale, valorisation CUMP/FIFO, taux de rotation et traçabilité des lots (FEFO)"
+      showBack
+      backFallback="/dashboard"
     >
       <template #actions>
         <AppButton variant="secondary" size="sm" @click="handleExportStocksExcel">

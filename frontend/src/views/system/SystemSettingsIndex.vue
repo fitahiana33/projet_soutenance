@@ -3,6 +3,8 @@
     <PageHeader
       title="Réglages Système & Paramètres Métiers"
       subtitle="Gestion intégrale des règles de calcul (Paie Madagascar, TVA, Stocks) et configurations de l'entreprise"
+      showBack
+      backFallback="/dashboard"
     >
       <template #actions>
         <AppButton variant="primary" size="sm" @click="openCreateParamModal">

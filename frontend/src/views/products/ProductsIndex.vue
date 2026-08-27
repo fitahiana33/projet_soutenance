@@ -3,6 +3,8 @@
     <PageHeader
       title="Référentiel Produits & Mouvements"
       subtitle="Catalogue centralisé, gestion des prix, références SKU, état et suivi des mouvements de stock"
+      showBack
+      backFallback="/dashboard"
     >
       <template #actions>
         <AppButton variant="secondary" size="sm" @click="handleExportProductsExcel">

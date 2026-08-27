@@ -3,6 +3,8 @@
     <PageHeader
       title="Journal d'Audit & Traçabilité de Sécurité"
       subtitle="Traçabilité inaltérable des actions utilisateurs, historique des modifications et journal de sécurité"
+      showBack
+      backFallback="/dashboard"
     >
       <template #actions>
         <AppButton variant="secondary" size="sm" @click="fetchLogs">

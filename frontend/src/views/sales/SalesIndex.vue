@@ -3,6 +3,8 @@
     <PageHeader
       title="Gestion des Ventes & Relation Client"
       subtitle="Suivi du chiffre d'affaires, devis pro-forma, commandes client et facturation"
+      showBack
+      backFallback="/dashboard"
     >
       <template #actions>
         <AppButton variant="secondary" size="sm" @click="fetchData">

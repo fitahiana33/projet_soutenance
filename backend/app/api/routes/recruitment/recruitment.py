@@ -5,11 +5,16 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.users.user import User
 from app.api.deps import require_permission
-from app.schemas.recruitment.recruitment import JobOfferCreate, JobOfferUpdate, CandidateCreate, RecruitmentMatchRequest
+from app.schemas.recruitment.recruitment import (
+    JobOfferCreate, JobOfferUpdate, CandidateCreate, RecruitmentMatchRequest,
+    CandidateEvaluationCreate, CandidateInterviewCreate, CandidateDecisionUpdate,
+    CandidateEmployeeCreate,
+)
 from app.services.recruitment.recruitment_service import (
     get_job_offers, create_job_offer, update_job_offer, update_job_offer_status, delete_job_offer,
-    get_candidates, create_candidate, update_candidate_status,
-    match_candidate_to_job, get_recruitment_overview
+    get_candidates, get_candidate_by_id, create_candidate, update_candidate_status,
+    match_candidate_to_job, get_recruitment_overview, add_candidate_evaluation,
+    add_candidate_interview, decide_candidate, create_employee_from_candidate
 )
 from app.services.audit.audit_service import log_action
 
@@ -18,16 +23,18 @@ router = APIRouter(prefix="/recruitment", tags=["Recrutement & Gestions des Tale
 
 @router.get("/overview", summary="KPIs généraux du recrutement")
 async def read_recruitment_overview(
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("HR_READ"))
 ):
-    return await get_recruitment_overview()
+    return await get_recruitment_overview(db)
 
 
 @router.get("/jobs", summary="Liste des offres d'emploi ouvertes")
 async def read_jobs(
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("HR_READ"))
 ):
-    return await get_job_offers()
+    return await get_job_offers(db)
 
 
 @router.post("/jobs", status_code=status.HTTP_201_CREATED, summary="Créer une offre d'emploi / fiche de poste")
@@ -36,7 +43,7 @@ async def add_job(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("HR_CREATE", "HR_MANAGE"))
 ):
-    res = await create_job_offer(data.model_dump())
+    res = await create_job_offer(data.model_dump(), db=db)
     log_action(
         db, action="CREATE", module="RH",
         user_id=current_user.id_user, username=current_user.username,
@@ -53,7 +60,7 @@ async def edit_job(
     current_user: User = Depends(require_permission("HR_UPDATE", "HR_MANAGE"))
 ):
     try:
-        res = await update_job_offer(job_id, data.model_dump(exclude_unset=True))
+        res = await update_job_offer(job_id, data.model_dump(exclude_unset=True), db=db)
         log_action(
             db, action="UPDATE", module="RH",
             user_id=current_user.id_user, username=current_user.username,
@@ -72,7 +79,7 @@ async def change_job_status(
     current_user: User = Depends(require_permission("HR_UPDATE", "HR_MANAGE"))
 ):
     try:
-        res = await update_job_offer_status(job_id, status_val)
+        res = await update_job_offer_status(job_id, status_val, db=db)
         log_action(
             db, action="UPDATE", module="RH",
             user_id=current_user.id_user, username=current_user.username,
@@ -90,7 +97,7 @@ async def remove_job(
     current_user: User = Depends(require_permission("HR_MANAGE"))
 ):
     try:
-        await delete_job_offer(job_id)
+        await delete_job_offer(job_id, db=db)
         log_action(
             db, action="DELETE", module="RH",
             user_id=current_user.id_user, username=current_user.username,
@@ -109,7 +116,10 @@ async def change_candidate_status(
     current_user: User = Depends(require_permission("HR_UPDATE", "HR_MANAGE"))
 ):
     try:
-        res = await update_candidate_status(candidate_id, status_val)
+        if status_val.upper() not in {"EN_EVALUATION", "ENTRETIEN"}:
+            raise HTTPException(status_code=400, detail="La décision finale doit être validée avec le bouton « Décider ».")
+        status_val = status_val.upper()
+        res = await update_candidate_status(candidate_id, status_val, db=db)
         log_action(
             db, action="UPDATE", module="RH",
             user_id=current_user.id_user, username=current_user.username,
@@ -122,9 +132,22 @@ async def change_candidate_status(
 
 @router.get("/candidates", summary="Banque de candidatures et CVs")
 async def read_candidates(
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("HR_READ"))
 ):
-    return await get_candidates()
+    return await get_candidates(db)
+
+
+@router.get("/candidates/{candidate_id}", summary="Fiche complete d'un candidat")
+async def read_candidate_detail(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("HR_READ"))
+):
+    candidate = await get_candidate_by_id(candidate_id, db)
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidat introuvable.")
+    return candidate
 
 
 @router.post("/candidates", status_code=status.HTTP_201_CREATED, summary="Enregistrer un candidat")
@@ -133,7 +156,7 @@ async def add_candidate(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("HR_CREATE", "HR_MANAGE"))
 ):
-    res = await create_candidate(data.model_dump())
+    res = await create_candidate(data.model_dump(), db=db)
     log_action(
         db, action="CREATE", module="RH",
         user_id=current_user.id_user, username=current_user.username,
@@ -145,9 +168,62 @@ async def add_candidate(
 @router.post("/match", summary="Matching compétences / poste avec scoring")
 async def process_match(
     data: RecruitmentMatchRequest,
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("USER_READ"))
 ):
     try:
-        return await match_candidate_to_job(data.job_offer_id, data.candidate_id)
+        return await match_candidate_to_job(data.job_offer_id, data.candidate_id, db=db)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/candidates/{candidate_id}/evaluations")
+async def evaluate_candidate(
+    candidate_id: int,
+    data: CandidateEvaluationCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("HR_UPDATE", "HR_MANAGE")),
+):
+    try:
+        return await add_candidate_evaluation(candidate_id, data.model_dump(), current_user.id_user, db)
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/candidates/{candidate_id}/interviews")
+async def schedule_candidate_interview(
+    candidate_id: int,
+    data: CandidateInterviewCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("HR_UPDATE", "HR_MANAGE")),
+):
+    try:
+        return await add_candidate_interview(candidate_id, data.model_dump(), current_user.id_user, db)
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put("/candidates/{candidate_id}/decision")
+async def validate_candidate_decision(
+    candidate_id: int,
+    data: CandidateDecisionUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("HR_UPDATE", "HR_MANAGE")),
+):
+    try:
+        return await decide_candidate(candidate_id, data.decision, current_user.id_user, db)
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/candidates/{candidate_id}/create-employee")
+async def convert_candidate_to_employee(
+    candidate_id: int,
+    data: CandidateEmployeeCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("HR_CREATE", "HR_MANAGE")),
+):
+    try:
+        return await create_employee_from_candidate(candidate_id, data.model_dump(), current_user.id_user, db)
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))

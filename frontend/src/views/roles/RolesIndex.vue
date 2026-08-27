@@ -3,6 +3,8 @@
     <PageHeader
       :title="isPermissionsPage ? 'Permissions Système' : 'Rôles & Habilitations'"
       :subtitle="isPermissionsPage ? 'Catalogue des droits disponibles dans l’application' : 'Gestion des rôles et affectation des droits d’accès'"
+      showBack
+      backFallback="/dashboard"
     >
       <template #actions>
         <AppButton v-if="isPermissionsPage" variant="secondary" size="sm" @click="openCreatePermissionModal">

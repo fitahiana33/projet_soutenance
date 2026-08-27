@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
-from app.models.hr.recruitment import JobOffer, Candidate
+from app.models.hr.recruitment import JobOffer, Candidate, CandidateEvaluation, CandidateInterview
+from app.models.hr.employee import Employee
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,14 @@ def _candidate_to_dict(c: Candidate) -> Dict[str, Any]:
         "experience_years": c.experience_years,
         "skills": c.skills or [],
         "cv_filename": c.cv_filename,
+        "job_offer_id": c.job_offer_id,
+        "matching_score": c.matching_score,
+        "final_decision": c.final_decision,
+        "validated_by_user_id": c.validated_by_user_id,
+        "validated_at": c.validated_at.isoformat() if c.validated_at else None,
+        "employee_id": c.employee_id,
+        "evaluations": [{"id_evaluation": e.id_evaluation, "score": e.score, "strengths": e.strengths, "weaknesses": e.weaknesses, "comments": e.comments, "created_at": e.created_at.isoformat() if e.created_at else None} for e in c.evaluations],
+        "interviews": [{"id_interview": i.id_interview, "scheduled_at": i.scheduled_at.isoformat() if i.scheduled_at else None, "status": i.status, "feedback": i.feedback, "score": i.score} for i in c.interviews],
         "status": c.status,
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
@@ -142,6 +151,20 @@ async def get_candidates(db: Optional[Session] = None) -> List[Dict[str, Any]]:
             db.close()
 
 
+async def get_candidate_by_id(id_candidate: int, db: Optional[Session] = None) -> Optional[Dict[str, Any]]:
+    """Recupere la fiche complete d'un candidat."""
+    session_owner = False
+    if db is None:
+        db = SessionLocal()
+        session_owner = True
+    try:
+        cand = db.query(Candidate).filter(Candidate.id_candidate == id_candidate).first()
+        return _candidate_to_dict(cand) if cand else None
+    finally:
+        if session_owner:
+            db.close()
+
+
 async def create_candidate(cand_data: Dict[str, Any], db: Optional[Session] = None) -> Dict[str, Any]:
     """Enregistrement d'un nouveau candidat dans PostgreSQL."""
     session_owner = False
@@ -157,6 +180,8 @@ async def create_candidate(cand_data: Dict[str, Any], db: Optional[Session] = No
             degree=cand_data["degree"],
             experience_years=float(cand_data.get("experience_years", 0.0)),
             skills=cand_data.get("skills", []),
+            cv_filename=cand_data.get("cv_filename"),
+            job_offer_id=cand_data.get("job_offer_id"),
             status=cand_data.get("status", "EN_EVALUATION")
         )
         db.add(new_cand)
@@ -185,6 +210,71 @@ async def update_candidate_status(id_candidate: int, status_val: str, db: Option
     finally:
         if session_owner:
             db.close()
+
+
+async def add_candidate_evaluation(id_candidate: int, data: Dict[str, Any], user_id: int, db: Session) -> Dict[str, Any]:
+    cand = db.query(Candidate).filter(Candidate.id_candidate == id_candidate).first()
+    if not cand:
+        raise RuntimeError(f"Candidat #{id_candidate} non trouvé.")
+    db.add(CandidateEvaluation(candidate_id=id_candidate, evaluator_user_id=user_id, **data))
+    cand.status = "EN_EVALUATION"
+    cand.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(cand)
+    return _candidate_to_dict(cand)
+
+
+async def add_candidate_interview(id_candidate: int, data: Dict[str, Any], user_id: int, db: Session) -> Dict[str, Any]:
+    cand = db.query(Candidate).filter(Candidate.id_candidate == id_candidate).first()
+    if not cand:
+        raise RuntimeError(f"Candidat #{id_candidate} non trouvé.")
+    db.add(CandidateInterview(candidate_id=id_candidate, interviewer_user_id=user_id, **data))
+    cand.status = "ENTRETIEN"
+    cand.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(cand)
+    return _candidate_to_dict(cand)
+
+
+async def decide_candidate(id_candidate: int, decision: str, user_id: int, db: Session) -> Dict[str, Any]:
+    cand = db.query(Candidate).filter(Candidate.id_candidate == id_candidate).first()
+    if not cand:
+        raise RuntimeError(f"Candidat #{id_candidate} non trouvé.")
+    if not cand.evaluations and not cand.interviews:
+        raise RuntimeError("Une évaluation ou un entretien est requis avant la décision finale.")
+    cand.final_decision = decision
+    cand.status = decision if decision != "EN_ATTENTE" else "EN_EVALUATION"
+    cand.validated_by_user_id = user_id
+    cand.validated_at = datetime.now(timezone.utc)
+    cand.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(cand)
+    return _candidate_to_dict(cand)
+
+
+async def create_employee_from_candidate(id_candidate: int, data: Dict[str, Any], user_id: int, db: Session) -> Dict[str, Any]:
+    cand = db.query(Candidate).filter(Candidate.id_candidate == id_candidate).first()
+    if not cand:
+        raise RuntimeError(f"Candidat #{id_candidate} non trouvé.")
+    if cand.final_decision != "RETENU" or not cand.validated_by_user_id:
+        raise RuntimeError("La candidature doit être retenue et validée avant de créer un employé.")
+    if cand.employee_id:
+        raise RuntimeError("Un employé est déjà lié à cette candidature.")
+    employee = Employee(
+        matricule=f"EMP-2026-{db.query(Employee).count() + 1:03d}", first_name=cand.first_name,
+        last_name=cand.last_name, email=cand.email, phone=cand.phone,
+        department=data["department"], job_title=data["job_title"],
+        contract_type=data.get("contract_type", "CDI"),
+        hire_date=datetime.strptime(data["hire_date"], "%Y-%m-%d").date(),
+        base_salary=data["base_salary"], status="ACTIF"
+    )
+    db.add(employee)
+    db.flush()
+    cand.employee_id = employee.id_employee
+    cand.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(cand)
+    return _candidate_to_dict(cand)
 
 
 def calculate_matching_score(job: Dict[str, Any], candidate: Dict[str, Any]) -> Dict[str, Any]:
@@ -245,7 +335,15 @@ async def match_candidate_to_job(job_id: int, candidate_id: int, db: Optional[Se
     if not job or not cand:
         raise RuntimeError("Offre d'emploi ou Candidat introuvable.")
 
-    return calculate_matching_score(job, cand)
+    result = calculate_matching_score(job, cand)
+    if db is not None:
+        candidate_row = db.query(Candidate).filter(Candidate.id_candidate == candidate_id).first()
+        if candidate_row:
+            candidate_row.job_offer_id = job_id
+            candidate_row.matching_score = result["matching_score_percent"]
+            candidate_row.updated_at = datetime.now(timezone.utc)
+            db.commit()
+    return result
 
 
 async def get_recruitment_overview(db: Optional[Session] = None) -> Dict[str, Any]:

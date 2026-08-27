@@ -3,6 +3,8 @@
     <PageHeader
       title="Ressources Humaines & Gestion des Talents"
       subtitle="Fiches employés, suivi des temps & congés, calendrier des jours fériés, paie et performance"
+      showBack
+      backFallback="/dashboard"
     >
       <template #actions>
         <AppButton variant="secondary" size="sm" @click="handleExportHRExcel">
@@ -125,6 +127,13 @@
         <template #col-status="{ value }">
           <AppBadge variant="success" label="Actif" />
         </template>
+
+        <template #actions="{ item }">
+          <AppButton variant="secondary" size="xs" @click="router.push(`/hr/employees/${item.id_employee}`)">
+            <AppIcon name="eye" size="12" />
+            <span>Fiche</span>
+          </AppButton>
+        </template>
       </AppTable>
     </div>
 
@@ -244,7 +253,7 @@
           <tbody>
             <tr v-for="hol in publicHolidays" :key="hol.id_holiday">
               <td class="font-mono text-xs text-muted">#{{ hol.id_holiday }}</td>
-              <td class="font-bold text-white">{{ hol.name }}</td>
+              <td class="font-bold color-text">{{ hol.name }}</td>
               <td class="font-mono text-amber-400 font-semibold">{{ hol.date }}</td>
               <td>
                 <span :class="['badge', hol.is_recurring ? 'badge-info' : 'badge-neutral']">
@@ -435,6 +444,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import hrService from '../../services/hrService'
 import { exportToExcel } from '../../utils/excelExport'
 import AppLayout from '../../layouts/AppLayout.vue'
@@ -449,6 +459,7 @@ import AppModal from '../../components/ui/AppModal.vue'
 import AppAlert from '../../components/ui/AppAlert.vue'
 
 const activeTab = ref('employees')
+const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
 

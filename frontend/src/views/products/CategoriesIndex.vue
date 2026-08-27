@@ -3,6 +3,8 @@
     <PageHeader
       title="Gestion des Catégories de Produits"
       subtitle="Gestion de la classification du catalogue et des sous-familles de produits"
+      showBack
+      backFallback="/products"
     >
       <template #actions>
         <AppButton variant="primary" size="sm" @click="openCreateCategoryModal">

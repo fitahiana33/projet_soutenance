@@ -1,4 +1,5 @@
 from typing import List, Optional, Dict, Any
+from datetime import datetime
 from pydantic import BaseModel, Field
 
 
@@ -32,8 +33,35 @@ class CandidateCreate(BaseModel):
     experience_years: float = Field(0.0, ge=0.0)
     skills: List[str] = Field(..., description="Liste des compétences maîtrisées")
     cv_filename: Optional[str] = None
+    job_offer_id: Optional[int] = None
 
 
 class RecruitmentMatchRequest(BaseModel):
     job_offer_id: int
     candidate_id: int
+
+
+class CandidateEvaluationCreate(BaseModel):
+    score: float = Field(..., ge=0, le=100)
+    strengths: Optional[str] = None
+    weaknesses: Optional[str] = None
+    comments: Optional[str] = None
+
+
+class CandidateInterviewCreate(BaseModel):
+    scheduled_at: datetime
+    status: str = "PLANIFIE"
+    feedback: Optional[str] = None
+    score: Optional[float] = Field(None, ge=0, le=100)
+
+
+class CandidateDecisionUpdate(BaseModel):
+    decision: str = Field(..., pattern="^(RETENU|REFUSE|EN_ATTENTE)$")
+
+
+class CandidateEmployeeCreate(BaseModel):
+    department: str
+    job_title: str
+    contract_type: str = "CDI"
+    hire_date: str
+    base_salary: float = Field(..., ge=0)

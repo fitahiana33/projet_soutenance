@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.core.config import settings
@@ -52,6 +52,18 @@ def init_db():
     )
 
     Base.metadata.create_all(bind=engine)
+
+    # Evolution sans perte des candidatures existantes (en attendant Alembic).
+    with engine.begin() as conn:
+        for statement in (
+            "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS job_offer_id INTEGER",
+            "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS matching_score DOUBLE PRECISION",
+            "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS final_decision VARCHAR(30)",
+            "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS validated_by_user_id INTEGER",
+            "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS validated_at TIMESTAMPTZ",
+            "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS employee_id INTEGER",
+        ):
+            conn.execute(text(statement))
 
 
 def get_db():
