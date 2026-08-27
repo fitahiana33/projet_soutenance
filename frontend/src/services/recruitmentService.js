@@ -44,6 +44,10 @@ const recruitmentService = {
     return api.get('/recruitment/candidates')
   },
 
+  getCandidate(id) {
+    return api.get(`/recruitment/candidates/${id}`)
+  },
+
   createCandidate(payload) {
     return api.post('/recruitment/candidates', payload)
   },
@@ -58,6 +62,22 @@ const recruitmentService = {
 
   runMatch(payload) {
     return api.post('/recruitment/match', payload)
+  },
+
+  addEvaluation(id, payload) {
+    return api.post(`/recruitment/candidates/${id}/evaluations`, payload)
+  },
+
+  addInterview(id, payload) {
+    return api.post(`/recruitment/candidates/${id}/interviews`, payload)
+  },
+
+  decideCandidate(id, decision) {
+    return api.put(`/recruitment/candidates/${id}/decision`, { decision })
+  },
+
+  createEmployee(id, payload) {
+    return api.post(`/recruitment/candidates/${id}/create-employee`, payload)
   }
 }
 

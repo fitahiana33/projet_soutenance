@@ -10,6 +10,10 @@
         Veuillez contacter votre Administrateur Système si vous pensez qu'il s'agit d'une erreur.
       </p>
       <div class="flex justify-center gap-3">
+        <AppButton variant="secondary" @click="goBack">
+          <AppIcon name="arrow-left" size="16" />
+          <span>Retour</span>
+        </AppButton>
         <AppButton variant="primary" @click="goToAllowedPage">
           <AppIcon name="dashboard" size="16" />
           <span>Accéder à mon espace</span>
@@ -28,6 +32,15 @@ import { getFirstAllowedPath } from '../../utils/access'
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+function goBack() {
+  if (window.history.length > 2) {
+    router.back()
+  } else {
+    goToAllowedPage()
+  }
+}
+
 function goToAllowedPage() {
   router.push(getFirstAllowedPath(authStore.currentUser))
 }

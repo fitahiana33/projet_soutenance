@@ -444,6 +444,7 @@ h6 {
 .color-warning { color: var(--color-warning) !important; }
 .color-danger { color: var(--color-danger) !important; }
 .color-primary { color: var(--color-primary) !important; }
+.color-text { color: var(--color-text) !important; }
 .text-muted { color: var(--color-text-muted) !important; }
 .font-mono { font-family: monospace; }
 .font-semibold { font-weight: 600; }

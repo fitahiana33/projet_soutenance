@@ -3,6 +3,8 @@
     <PageHeader
       title="Intégration & Synchronisation Dolibarr"
       subtitle="Connecteur API REST, gestion de la synchronisation des produits, tiers, commandes, factures et employés"
+      showBack
+      backFallback="/system"
     >
       <template #actions>
         <AppButton variant="secondary" size="sm" :loading="testingConn" @click="testConnection">

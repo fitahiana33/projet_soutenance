@@ -14,6 +14,10 @@ const hrService = {
     return api.get('/hr/employees')
   },
 
+  getEmployee(id) {
+    return api.get(`/hr/employees/${id}`)
+  },
+
   createEmployee(payload) {
     return api.post('/hr/employees', payload)
   },

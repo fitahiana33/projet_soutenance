@@ -41,6 +41,19 @@ async def list_employees(
     return hr_service.get_all_employees(db, actor_user=current_user)
 
 
+@router.get("/employees/{id_employee}", response_model=EmployeeResponse)
+async def get_employee_detail(
+    id_employee: int,
+    db: Session = Depends(get_db),
+    current_user: UserResponse = Depends(require_permission("HR_READ", "EMPLOYEE_READ"))
+):
+    """Fiche complete d'un salarie."""
+    employee = hr_service.get_employee_by_id(db, id_employee)
+    if not employee:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employe introuvable.")
+    return employee
+
+
 @router.post("/employees", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)
 async def create_employee(
     emp_data: EmployeeCreate,

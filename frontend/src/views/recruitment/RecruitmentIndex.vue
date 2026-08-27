@@ -3,6 +3,8 @@
     <PageHeader
       title="Recrutement & Management des Talents"
       subtitle="Offres d'emploi, cartographie des compétences et matching transparent poste/candidat"
+      showBack
+      backFallback="/dashboard"
     >
       <template #actions>
         <AppButton variant="secondary" size="sm" @click="fetchData">
@@ -35,6 +37,42 @@
       <template #footer>
         <AppButton variant="ghost" @click="showDeleteJobModal = false">Annuler</AppButton>
         <AppButton variant="danger" :loading="saving" @click="confirmDeleteJob">Supprimer l'offre</AppButton>
+      </template>
+    </AppModal>
+
+    <AppModal v-model="showWorkflowModal" :title="workflowTitle" size="sm">
+      <form class="space-y-4 text-xs" @submit.prevent="submitWorkflow">
+        <p class="text-muted">Candidat : <strong>{{ workflowCandidate?.first_name }} {{ workflowCandidate?.last_name }}</strong></p>
+        <template v-if="workflowAction === 'evaluation'">
+          <AppInput id="evaluation-score" v-model.number="workflowForm.score" type="number" min="0" max="100" label="Score d'évaluation (%)" required />
+          <AppInput id="evaluation-strengths" v-model="workflowForm.strengths" label="Points forts" />
+          <AppInput id="evaluation-weaknesses" v-model="workflowForm.weaknesses" label="Points à améliorer" />
+          <AppInput id="evaluation-comments" v-model="workflowForm.comments" label="Commentaires" />
+        </template>
+        <template v-else-if="workflowAction === 'interview'">
+          <AppInput id="interview-date" v-model="workflowForm.scheduled_at" type="datetime-local" label="Date de l'entretien" required />
+          <AppInput id="interview-score" v-model.number="workflowForm.score" type="number" min="0" max="100" label="Score (optionnel)" />
+          <AppInput id="interview-feedback" v-model="workflowForm.feedback" label="Retour d'entretien" />
+        </template>
+        <template v-else-if="workflowAction === 'decision'">
+          <label class="form-label" for="candidate-decision">Décision finale</label>
+          <select id="candidate-decision" v-model="workflowForm.decision" class="input" required>
+            <option value="EN_ATTENTE">Maintenir en attente</option>
+            <option value="RETENU">Retenir le candidat</option>
+            <option value="REFUSE">Refuser la candidature</option>
+          </select>
+          <p class="text-muted">La décision sera enregistrée avec votre utilisateur et la date de validation.</p>
+        </template>
+        <template v-else>
+          <AppInput id="employee-department" v-model="workflowForm.department" label="Département" required />
+          <AppInput id="employee-job-title" v-model="workflowForm.job_title" label="Poste" required />
+          <AppInput id="employee-hire-date" v-model="workflowForm.hire_date" type="date" label="Date d'embauche" required />
+          <AppInput id="employee-salary" v-model.number="workflowForm.base_salary" type="number" min="0" label="Salaire brut" required />
+        </template>
+      </form>
+      <template #footer>
+        <AppButton variant="ghost" @click="showWorkflowModal = false">Annuler</AppButton>
+        <AppButton variant="primary" :loading="saving" @click="submitWorkflow">Enregistrer</AppButton>
       </template>
     </AppModal>
 
@@ -126,7 +164,7 @@
             <tbody>
               <tr v-for="j in jobOffers" :key="j.id_job">
                 <td class="font-bold color-primary">{{ j.title }}</td>
-                <td class="font-semibold text-white">{{ j.department }}</td>
+                <td class="font-semibold color-text">{{ j.department }}</td>
                 <td class="text-xs">{{ j.location || 'Antananarivo' }} ({{ j.contract_type || 'CDI' }})</td>
                 <td class="text-xs">{{ j.experience_required_years }} an(s)</td>
                 <td>
@@ -201,13 +239,15 @@
                 <th>Diplôme</th>
                 <th>Expérience</th>
                 <th>Compétences Clefs</th>
+                <th>Offre / Matching</th>
                 <th>Statut Candidature</th>
+                <th>Suivi</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="c in candidates" :key="c.id_candidate">
-                <td class="font-bold text-white">{{ c.first_name }} {{ c.last_name }}</td>
+                <td class="font-bold color-text">{{ c.first_name }} {{ c.last_name }}</td>
                 <td class="text-xs color-primary">{{ c.email }}</td>
                 <td class="text-xs">{{ c.degree }}</td>
                 <td class="text-xs">{{ c.experience_years }} an(s)</td>
@@ -218,25 +258,44 @@
                     </span>
                   </div>
                 </td>
+                <td class="text-xs">
+                  <span>{{ jobTitle(c.job_offer_id) }}</span><br />
+                  <strong v-if="c.matching_score !== null && c.matching_score !== undefined" class="color-primary">{{ Number(c.matching_score).toFixed(1) }}%</strong>
+                  <span v-else class="text-muted">Non calculé</span>
+                </td>
                 <td>
                   <span :class="['badge', c.status === 'RETENU' ? 'badge-success' : c.status === 'REFUSE' ? 'badge-neutral' : c.status === 'ENTRETIEN' ? 'badge-warning' : 'badge-info']">
                     {{ c.status || 'EN_EVALUATION' }}
                   </span>
                 </td>
+                <td class="text-xs text-muted">
+                  {{ c.evaluations?.length || 0 }} éval. / {{ c.interviews?.length || 0 }} entretien(s)
+                  <br /><span v-if="c.employee_id" class="color-success">Employé lié</span>
+                </td>
                 <td>
                   <div class="flex items-center gap-1">
-                    <select class="input text-xs py-1 px-2" style="min-width:130px" @change="changeCandidateStatus(c.id_candidate, $event.target.value)">
-                      <option value="">— Changer statut —</option>
+                    <AppButton variant="secondary" size="xs" @click="router.push(`/recruitment/candidates/${c.id_candidate}`)">
+                      <AppIcon name="eye" size="12" />
+                      <span>Fiche</span>
+                    </AppButton>
+                    <select
+                      class="input text-xs py-1 px-2"
+                      style="min-width:130px"
+                      :value="c.status || 'EN_EVALUATION'"
+                      @change="changeCandidateStatus(c, $event)"
+                    >
                       <option value="EN_EVALUATION">En Évaluation</option>
                       <option value="ENTRETIEN">Entretien</option>
-                      <option value="RETENU">Retenu</option>
-                      <option value="REFUSE">Refusé</option>
                     </select>
+                    <AppButton variant="secondary" size="xs" @click="openWorkflow(c, 'evaluation')">Évaluer</AppButton>
+                    <AppButton variant="secondary" size="xs" @click="openWorkflow(c, 'interview')">Entretien</AppButton>
+                    <AppButton v-if="!c.final_decision" variant="warning" size="xs" @click="openWorkflow(c, 'decision')">Décider</AppButton>
+                    <AppButton v-if="c.final_decision === 'RETENU' && !c.employee_id" variant="success" size="xs" @click="openWorkflow(c, 'employee')">Créer employé</AppButton>
                   </div>
                 </td>
               </tr>
               <tr v-if="candidates.length === 0">
-                <td colspan="7" class="text-center py-6 text-muted">Aucun candidat enregistré.</td>
+                <td colspan="9" class="text-center py-6 text-muted">Aucun candidat enregistré.</td>
               </tr>
             </tbody>
           </table>
@@ -419,6 +478,13 @@
           label="Compétences (séparées par virgules)"
           placeholder="ex: Python, Vue.js, SQL"
         />
+        <div>
+          <label class="form-label" for="cand-job">Offre liée (optionnel)</label>
+          <select id="cand-job" v-model="candForm.job_offer_id" class="input">
+            <option :value="null">Aucune offre sélectionnée</option>
+            <option v-for="j in jobOffers" :key="j.id_job" :value="j.id_job">{{ j.title }} ({{ j.department }})</option>
+          </select>
+        </div>
       </form>
       <template #footer>
         <AppButton variant="ghost" @click="showCandidateModal = false">Annuler</AppButton>
@@ -429,7 +495,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import recruitmentService from '../../services/recruitmentService'
 import { exportToExcel } from '../../utils/excelExport'
 import AppLayout from '../../layouts/AppLayout.vue'
@@ -443,6 +510,7 @@ import AppAlert from '../../components/ui/AppAlert.vue'
 import { confirmAction } from '../../utils/actionConfirm'
 
 const activeTab = ref('jobs')
+const router = useRouter()
 const overview = ref({})
 const jobOffers = ref([])
 const candidates = ref([])
@@ -457,6 +525,10 @@ const showEditJobModal = ref(false)
 const showCandidateModal = ref(false)
 const showDeleteJobModal = ref(false)
 const jobToDelete = ref(null)
+const showWorkflowModal = ref(false)
+const workflowCandidate = ref(null)
+const workflowAction = ref('evaluation')
+const workflowForm = ref({})
 
 const pageError = ref('')
 const pageSuccess = ref('')
@@ -470,8 +542,54 @@ const editJobForm = ref({
 })
 
 const candForm = ref({
-  first_name: '', last_name: '', email: '', degree: 'Master II', experience_years: 3.0, skills_str: ''
+  first_name: '', last_name: '', email: '', degree: 'Master II', experience_years: 3.0, skills_str: '', job_offer_id: null
 })
+
+const workflowTitle = computed(() => ({
+  evaluation: 'Évaluer la candidature',
+  interview: 'Planifier un entretien',
+  decision: 'Valider la décision finale',
+  employee: 'Créer la fiche employé'
+}[workflowAction.value] || 'Suivi de candidature'))
+
+function jobTitle(jobId) {
+  if (!jobId) return 'Candidature spontanée'
+  const job = jobOffers.value.find(item => Number(item.id_job) === Number(jobId))
+  return job ? job.title : `Offre #${jobId}`
+}
+
+function openWorkflow(candidate, action) {
+  workflowCandidate.value = candidate
+  workflowAction.value = action
+  workflowForm.value = action === 'evaluation'
+    ? { score: candidate.matching_score || 0, strengths: '', weaknesses: '', comments: '' }
+    : action === 'interview'
+      ? { scheduled_at: '', score: null, feedback: '' }
+      : action === 'decision'
+        ? { decision: 'EN_ATTENTE' }
+        : { department: '', job_title: '', hire_date: new Date().toISOString().slice(0, 10), base_salary: 0 }
+  showWorkflowModal.value = true
+}
+
+async function submitWorkflow() {
+  if (!workflowCandidate.value) return
+  saving.value = true
+  pageError.value = ''
+  try {
+    const id = workflowCandidate.value.id_candidate
+    if (workflowAction.value === 'evaluation') await recruitmentService.addEvaluation(id, workflowForm.value)
+    if (workflowAction.value === 'interview') await recruitmentService.addInterview(id, workflowForm.value)
+    if (workflowAction.value === 'decision') await recruitmentService.decideCandidate(id, workflowForm.value.decision)
+    if (workflowAction.value === 'employee') await recruitmentService.createEmployee(id, workflowForm.value)
+    showWorkflowModal.value = false
+    pageSuccess.value = 'Action enregistrée avec succès.'
+    await fetchData()
+  } catch (e) {
+    pageError.value = e.response?.data?.detail || 'Impossible d’enregistrer cette action.'
+  } finally {
+    saving.value = false
+  }
+}
 
 async function fetchData() {
   pageError.value = ''
@@ -586,17 +704,24 @@ async function handleDeleteJob(id) {
   }
 }
 
-async function changeCandidateStatus(id, newStatus) {
+async function changeCandidateStatus(candidate, event) {
+  const newStatus = event.target.value
+  const oldStatus = candidate.status || 'EN_EVALUATION'
   if (!newStatus) return
-  if (!confirmAction(`Confirmer le changement de statut du candidat vers « ${newStatus} » ?`)) return
+  if (newStatus === oldStatus) return
+  if (!confirmAction(`Confirmer le changement de statut du candidat vers « ${newStatus} » ?`)) {
+    event.target.value = oldStatus
+    return
+  }
   saving.value = true
   pageError.value = ''
   pageSuccess.value = ''
   try {
-    await recruitmentService.updateCandidateStatus(id, newStatus)
+    await recruitmentService.updateCandidateStatus(candidate.id_candidate, newStatus)
     pageSuccess.value = `Statut candidat mis à jour : ${newStatus}`
     await fetchData()
   } catch (e) {
+    event.target.value = oldStatus
     pageError.value = e.response?.data?.detail || 'Erreur lors du changement de statut candidat.'
   } finally {
     saving.value = false
@@ -653,11 +778,12 @@ async function handleCreateCandidate() {
       email: candForm.value.email,
       degree: candForm.value.degree,
       experience_years: candForm.value.experience_years,
-      skills: skills
+      skills: skills,
+      job_offer_id: candForm.value.job_offer_id || null
     })
     pageSuccess.value = 'Candidat enregistré dans le vivier de talents !'
     showCandidateModal.value = false
-    candForm.value = { first_name: '', last_name: '', email: '', degree: 'Master II', experience_years: 3.0, skills_str: '' }
+    candForm.value = { first_name: '', last_name: '', email: '', degree: 'Master II', experience_years: 3.0, skills_str: '', job_offer_id: null }
     await fetchData()
   } catch (e) {
     pageError.value = 'Erreur lors de la création du candidat.'

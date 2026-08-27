@@ -12,7 +12,9 @@ import StocksIndex from '../views/stocks/StocksIndex.vue'
 import PurchasesIndex from '../views/purchases/PurchasesIndex.vue'
 import SalesIndex from '../views/sales/SalesIndex.vue'
 import HRIndex from '../views/hr/HRIndex.vue'
+import EmployeeDetail from '../views/hr/EmployeeDetail.vue'
 import RecruitmentIndex from '../views/recruitment/RecruitmentIndex.vue'
+import CandidateDetail from '../views/recruitment/CandidateDetail.vue'
 import AuditIndex from '../views/audit/AuditIndex.vue'
 import SystemSettingsIndex from '../views/system/SystemSettingsIndex.vue'
 import { getFirstAllowedPath, userCanAccess } from '../utils/access'
@@ -77,9 +79,21 @@ const routes = [
     meta: { requiresAuth: true, permissions: ['HR_READ', 'EMPLOYEE_READ', 'PAYROLL_READ', 'HOLIDAY_READ'] }
   },
   {
+    path: '/hr/employees/:id',
+    name: 'employee-detail',
+    component: EmployeeDetail,
+    meta: { requiresAuth: true, permissions: ['HR_READ', 'EMPLOYEE_READ'] }
+  },
+  {
     path: '/recruitment',
     name: 'recruitment',
     component: RecruitmentIndex,
+    meta: { requiresAuth: true, permissions: ['HR_READ', 'HR_MANAGE'] }
+  },
+  {
+    path: '/recruitment/candidates/:id',
+    name: 'candidate-detail',
+    component: CandidateDetail,
     meta: { requiresAuth: true, permissions: ['HR_READ', 'HR_MANAGE'] }
   },
   {

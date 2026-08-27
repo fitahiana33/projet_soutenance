@@ -3,6 +3,8 @@
     <PageHeader
       title="Gestion des Achats & Analyse Fournisseurs"
       subtitle="Workflow complet d'approvisionnement (Demande → Commande → Réception → Facturation) et Scoring IA Fournisseurs"
+      showBack
+      backFallback="/dashboard"
     >
       <template #actions>
         <AppButton variant="secondary" size="sm" @click="handleExportPurchasesExcel">

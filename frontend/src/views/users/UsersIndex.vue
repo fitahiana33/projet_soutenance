@@ -4,6 +4,8 @@
       title="Annuaire des Utilisateurs"
       subtitle="Administration des comptes utilisateurs, statuts de connexion et attribution des rôles"
       :breadcrumbs="[{ label: 'Accueil', path: '/dashboard' }, { label: 'Utilisateurs' }]"
+      showBack
+      backFallback="/dashboard"
     >
       <template #actions>
         <AppButton variant="primary" size="sm" @click="openCreateModal">
