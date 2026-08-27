@@ -59,6 +59,9 @@ class StockValuationResponse(BaseModel):
     total_value_cump: Optional[float] = None
     total_value_fifo: Optional[float] = None
     variance_total: Optional[float] = None
+    missing_prices_count: Optional[int] = 0
+    is_estimated: Optional[bool] = False
+    valuation_reliability: Optional[str] = "HAUTE"
     products: List[ProductValuationDetail]
 
 
@@ -68,7 +71,10 @@ class StockRotationDetail(BaseModel):
     label: str
     current_stock: Optional[int] = 0
     average_stock: float
+    average_stock_source: Optional[str] = "ESTIMATION_MOUVEMENTS"
+    snapshot_count: Optional[int] = 0
     total_outflow: Optional[int] = 0
+    observed_days: Optional[int] = 0
     annualized_outflow: Optional[int] = 0
     turnover_rate: float
     average_retention_days: float

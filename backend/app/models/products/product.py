@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional, List
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Table
+    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Table, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 
@@ -69,8 +69,18 @@ class StockMovement(Base):
 
     movement_type = Column(String(20), nullable=False)  # ENTREE, SORTIE, AJUSTEMENT, TRANSFERT
     quantity = Column(Integer, nullable=False)
-    reference_doc = Column(String(100), nullable=True)  # N° Bon de livraison / commande
+    reference_doc = Column(String(100), nullable=True, index=True)  # N° Bon de livraison / commande
     comment = Column(String(255), nullable=True)
+
+    # Clé d'idempotence Dolibarr — nullable car SYNC_PENDING n'a pas encore d'id distant
+    dolibarr_mvt_id = Column(Integer, nullable=True, unique=True, index=True)
+    # SYNCED | SYNC_PENDING | SYNC_FAILED
+    sync_status = Column(String(20), nullable=False, default="SYNCED")
 
     created_by_user_id = Column(Integer, ForeignKey("user_.id_user"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint("product_id", "movement_type", "reference_doc",
+                         name="uq_movement_product_type_ref"),
+    )

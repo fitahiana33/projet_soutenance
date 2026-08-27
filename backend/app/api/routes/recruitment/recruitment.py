@@ -169,7 +169,7 @@ async def add_candidate(
 async def process_match(
     data: RecruitmentMatchRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("USER_READ"))
+    current_user: User = Depends(require_permission("HR_READ", "HR_MANAGE"))
 ):
     try:
         return await match_candidate_to_job(data.job_offer_id, data.candidate_id, db=db)

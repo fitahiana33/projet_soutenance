@@ -319,11 +319,6 @@ async def reset_all_business_data() -> Dict[str, Any]:
     except Exception:
         pass
 
-    try:
-        stock_service._product_lots_store.clear()
-    except Exception:
-        pass
-
     logger.info("Purge intégrale Dolibarr + PostgreSQL + RAM exécutée avec succès.")
 
     return {

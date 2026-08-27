@@ -59,11 +59,35 @@ class SaleOrderResponse(BaseModel):
     created_at: str
 
 
+class SaleDeliveryCreate(BaseModel):
+    order_id: int
+    reference: Optional[str] = Field(None, description="Référence idempotente de livraison")
+    status: str = Field("PREPAREE", description="PREPAREE ou LIVREE")
+    total_quantity: Optional[int] = Field(None, ge=0)
+    delivery_date: Optional[str] = None
+    tracking_number: Optional[str] = None
+    carrier: Optional[str] = None
+    customer_signature: Optional[bool] = None
+    notes: Optional[str] = None
+
+
 class SaleInvoiceCreate(BaseModel):
     order_id: int
     payment_mode: str = Field("VIREMENT", description="VIREMENT, CHEQUE, ESPÈCES, CB")
     notes: Optional[str] = None
     invoice_date: Optional[str] = None
+
+
+class DeliveryCreate(BaseModel):
+    order_id: int
+    reference: Optional[str] = None
+    status: str = Field("PREPAREE", description="PREPAREE ou LIVREE")
+    delivery_date: Optional[str] = None
+    total_quantity: Optional[int] = Field(None, ge=0)
+    tracking_number: Optional[str] = None
+    carrier: Optional[str] = None
+    customer_signature: Optional[bool] = None
+    notes: Optional[str] = None
 
 
 class SalePaymentUpdate(BaseModel):

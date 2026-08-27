@@ -111,6 +111,25 @@ class SalesOrder(Base):
     customer: Mapped[Customer] = relationship("Customer", back_populates="orders")
     deliveries: Mapped[List["Delivery"]] = relationship("Delivery", back_populates="sales_order")
     invoices: Mapped[List["SalesInvoice"]] = relationship("SalesInvoice", back_populates="sales_order")
+    lines: Mapped[List["SalesOrderLine"]] = relationship(
+        "SalesOrderLine", back_populates="order", cascade="all, delete-orphan"
+    )
+
+
+class SalesOrderLine(Base):
+    __tablename__ = "sales_order_lines"
+
+    id_line: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(Integer, ForeignKey("sales_orders.id_order", ondelete="CASCADE"), nullable=False, index=True)
+    product_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    product_reference: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    product_label: Mapped[str] = mapped_column(String(200), nullable=False)
+    quantity: Mapped[float] = mapped_column(Float, nullable=False)
+    unit_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    discount_percent: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    total_ht: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
+    order: Mapped[SalesOrder] = relationship("SalesOrder", back_populates="lines")
 
 
 class Delivery(Base):

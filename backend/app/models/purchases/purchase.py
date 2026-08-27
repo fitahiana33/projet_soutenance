@@ -105,6 +105,24 @@ class PurchaseOrder(Base):
     invoices: Mapped[List["SupplierInvoice"]] = relationship(
         "SupplierInvoice", back_populates="purchase_order"
     )
+    lines: Mapped[List["PurchaseOrderLine"]] = relationship(
+        "PurchaseOrderLine", back_populates="order", cascade="all, delete-orphan"
+    )
+
+
+class PurchaseOrderLine(Base):
+    __tablename__ = "purchase_order_lines"
+
+    id_line: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(Integer, ForeignKey("purchase_orders.id_order", ondelete="CASCADE"), nullable=False, index=True)
+    product_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    product_reference: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    product_label: Mapped[str] = mapped_column(String(200), nullable=False)
+    quantity: Mapped[float] = mapped_column(Float, nullable=False)
+    unit_price: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    total_ht: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
+    order: Mapped[PurchaseOrder] = relationship("PurchaseOrder", back_populates="lines")
 
 
 class GoodsReceipt(Base):
