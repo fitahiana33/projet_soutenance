@@ -24,7 +24,6 @@
         </div>
       </div>
     </div>
-    </div>
     <div v-if="$slots.actions" class="page-header__actions">
       <slot name="actions" />
     </div>

@@ -395,11 +395,11 @@ async def get_product_movements(product_id: int, db: Optional[Session] = None) -
                     "id_movement": int(m.get("id", idx + 1)),
                     "product_id": product_id,
                     "movement_type": "ENTREE" if int(float(m.get("qty", 0))) > 0 else "SORTIE",
-                    "quantity": int(float(m.get("qty", 0))),
+                    "quantity": abs(int(float(m.get("qty", 0)))),
                     "reference_doc": m.get("inventorycode") or m.get("label"),
                     "comment": m.get("comment", "Mouvement Dolibarr"),
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "created_by_user_id": 1
+                    "created_at": _dolibarr_movement_date(m).isoformat(),
+                    "created_by_user_id": int(m.get("fk_user_author") or 1)
                 }
                 for idx, m in enumerate(mvts)
             ]
@@ -429,6 +429,19 @@ async def get_product_movements(product_id: int, db: Optional[Session] = None) -
     return movements_list
 
 
+def _dolibarr_movement_date(movement: Dict[str, Any]) -> datetime:
+    """Normalise la date renvoyée par Dolibarr sans la remplacer par maintenant."""
+    raw = movement.get("datem") or movement.get("date_creation") or movement.get("tms")
+    if isinstance(raw, (int, float)) or (isinstance(raw, str) and raw.isdigit()):
+        return datetime.fromtimestamp(int(raw), tz=timezone.utc)
+    if isinstance(raw, str) and raw:
+        try:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    raise RuntimeError("Dolibarr a retourné un mouvement sans date exploitable.")
+
+
 async def record_stock_movement(
     product_id: int,
     movement_type: str,
@@ -437,10 +450,91 @@ async def record_stock_movement(
     comment: Optional[str] = None,
     user_id: Optional[int] = None,
     db: Optional[Session] = None,
+    commit: bool = True,
+    preserve_reservations: bool = False,
 ) -> Dict[str, Any]:
-    """Enregistre un mouvement de stock dans Dolibarr (`POST /stockmovements`) et PostgreSQL."""
+    """Enregistre un mouvement de stock.
+
+    1. Validation locale PostgreSQL AVANT d'appeler Dolibarr pour éviter toute divergence
+       si le stock disponible local est insuffisant ou deviendrait inférieur au stock réservé.
+    2. Appel de l'API REST Dolibarr (`POST /stockmovements`).
+    3. Persistance du mouvement et mise à jour du produit dans PostgreSQL sous la transaction active.
+    """
+    is_inbound = movement_type.upper() in ["ENTREE", "AJUSTEMENT_PLUS"]
+    qty = abs(quantity) if is_inbound else -abs(quantity)
+
+    # Une référence de document représente une opération métier unique.
+    if db is not None and reference_doc:
+        from app.models.products.product import StockMovement
+        existing = db.query(StockMovement).filter(
+            StockMovement.reference_doc == reference_doc,
+            StockMovement.product_id == product_id,
+            StockMovement.movement_type == movement_type.upper(),
+        ).first()
+        if existing:
+            if existing.quantity != qty:
+                raise ValueError(
+                    f"La référence de mouvement '{reference_doc}' existe déjà "
+                    "avec une quantité différente."
+                )
+            return {
+                "id_movement": existing.id_movement,
+                "product_id": existing.product_id,
+                "movement_type": existing.movement_type,
+                "quantity": existing.quantity,
+                "reference_doc": existing.reference_doc,
+                "comment": existing.comment,
+                "created_at": existing.created_at.isoformat() if existing.created_at else None,
+                "created_by_user_id": existing.created_by_user_id,
+                "sync_status": existing.sync_status,
+                "idempotent": True,
+            }
+    # FIX Point 2: Validation préalable en base locale AVANT de contacter Dolibarr
+    prod = None
+    if db is not None:
+        from app.models.products.product import Product
+        prod = db.query(Product).filter(Product.id_product == product_id).with_for_update().first()
+        if prod is None:
+            raise RuntimeError(
+                f"Mouvement refusé : le produit local #{product_id} n'existe pas. "
+                "Synchronisez/créez le produit avant d'enregistrer le mouvement."
+            )
+        if prod and not is_inbound:
+            physical = max(0, int(prod.stock_quantity or 0))
+            if physical < abs(quantity):
+                raise RuntimeError(
+                    f"Mouvement refusé : stock physique insuffisant en base locale ({physical} dispo vs {abs(quantity)} demandé)."
+                )
+            if not preserve_reservations and physical - abs(quantity) < max(0, int(prod.stock_reserved or 0)):
+                raise RuntimeError(
+                    "Mouvement refusé : la sortie consommerait du stock réservé. "
+                    "Utilisez le flux de livraison pour libérer la réservation concernée."
+                )
+
+    # FIX Point 5 (FEFO): Vérifier que la quantité disponible dans les lots non-expirés/non-bloqués est suffisante
+    if db is not None and not is_inbound:
+        from app.models.stocks.lots import ProductLot
+        from datetime import date as _date
+        available_in_lots = db.query(ProductLot).filter(
+            ProductLot.product_id == product_id,
+            ProductLot.quantity > 0,
+            ProductLot.is_blocked == False,
+        ).all()
+        today = _date.today()
+        # Ignorer les lots expirés
+        valid_lots_qty = sum(
+            lot.quantity for lot in available_in_lots
+            if lot.expiry_date is None or lot.expiry_date >= today
+        )
+        # S'il existe des lots, la sortie ne peut dépasser le total des lots valides
+        if available_in_lots and valid_lots_qty < abs(quantity):
+            raise RuntimeError(
+                f"Sortie FEFO refusée : stock lots valides insuffisant "
+                f"({valid_lots_qty} disponible vs {abs(quantity)} demandé). "
+                f"Vérifiez les dates d'expiration et les lots bloqués."
+            )
+
     warehouse_id = await _get_or_create_default_warehouse()
-    qty = abs(quantity) if movement_type.upper() in ["ENTREE", "AJUSTEMENT_PLUS"] else -abs(quantity)
     payload = {
         "product_id": product_id,
         "warehouse_id": warehouse_id,
@@ -448,50 +542,128 @@ async def record_stock_movement(
         "label": comment or f"Mouvement Smart ERP ({movement_type})",
         "inventorycode": reference_doc or "SMART-ERP"
     }
-
-    if db is not None:
-        try:
-            from app.models.products.product import StockMovement, Product
-            prod_exists = db.query(Product).filter(Product.id_product == product_id).first()
-            if prod_exists:
-                sm = StockMovement(
-                    product_id=product_id,
-                    movement_type=movement_type.upper(),
-                    quantity=qty,
-                    reference_doc=reference_doc,
-                    comment=comment,
-                    created_by_user_id=user_id,
-                    created_at=datetime.now(timezone.utc)
-                )
-                db.add(sm)
-                db.commit()
-        except Exception as dbe:
-            db.rollback()
-            logger.warning(f"Erreur enregistrement StockMovement DB PostgreSQL: {dbe}")
+    mvt_id = None
+    sync_status = "SYNCED"
 
     try:
-        logger.info(f"Enregistrement du mouvement de stock #{product_id} dans Dolibarr: qty={qty}, warehouse={warehouse_id}")
-        res = await dolibarr_client.post("stockmovements", payload)
-        mvt_id = res if isinstance(res, int) else (res.get("id") if isinstance(res, dict) else 1)
+        try:
+            logger.info(f"Enregistrement du mouvement de stock #{product_id} dans Dolibarr: qty={qty}, warehouse={warehouse_id}")
+            res = await dolibarr_client.post("stockmovements", payload)
+            mvt_id = res if isinstance(res, int) else (res.get("id") if isinstance(res, dict) else None)
+            if mvt_id is None:
+                # FIX Point 1 : Dolibarr a répondu mais sans id => SYNC_PENDING
+                logger.warning("Dolibarr n'a pas retourné d'identifiant de mouvement. Passage en SYNC_PENDING.")
+                sync_status = "SYNC_PENDING"
+                if db is None:
+                    raise RuntimeError("Dolibarr n'a pas retourné l'identifiant du mouvement et aucune base locale n'est disponible.")
+        except Exception as err:
+            logger.warning(f"Appel Dolibarr stockmovements échoué ({err}). Enregistrement PostgreSQL local sous SYNC_PENDING.")
+            sync_status = "SYNC_PENDING"
+            if db is None:
+                raise  # Pas de fallback possible sans base locale
+
+        # Persistance PostgreSQL
+        if db is not None:
+            from app.models.products.product import StockMovement, Product
+            from app.models.stocks.lots import ProductLot
+
+            if not prod:
+                prod = db.query(Product).filter(Product.id_product == product_id).with_for_update().first()
+
+            if prod:
+                physical = max(0, int(prod.stock_quantity or 0))
+                reserved = max(0, int(prod.stock_reserved or 0))
+                if is_inbound:
+                    physical += abs(quantity)
+                else:
+                    physical = max(0, physical - abs(quantity))
+
+                prod.stock_quantity = physical
+                # Lors d'une livraison, la réservation de cette commande est
+                # libérée juste après la sortie. Elle doit donc rester intacte
+                # pendant cette transaction intermédiaire.
+                prod.stock_reserved = reserved if preserve_reservations else min(reserved, physical)
+                prod.updated_at = datetime.now(timezone.utc)
+
+                # FIX Point 8: Déduction FEFO automatique sur les lots PostgreSQL lors des sorties
+                if not is_inbound:
+                    from datetime import date as _date
+                    today_fefo = _date.today()
+                    active_lots = db.query(ProductLot).filter(
+                        ProductLot.product_id == product_id,
+                        ProductLot.quantity > 0,
+                        ProductLot.is_blocked == False,
+                    ).order_by(ProductLot.expiry_date.asc().nullslast(), ProductLot.id_lot.asc()).all()
+
+                    rem_to_deduct = abs(quantity)
+                    for lot in active_lots:
+                        if rem_to_deduct <= 0:
+                            break
+                        # Ignorer les lots expirés
+                        if lot.expiry_date is not None and lot.expiry_date < today_fefo:
+                            continue
+                        ded = min(lot.quantity, rem_to_deduct)
+                        lot.quantity -= ded
+                        rem_to_deduct -= ded
+
+                # FIX Point 5: Auto-création d'un lot minimal lors d'une entrée ENTREE
+                if is_inbound:
+                    auto_lot_number = reference_doc or f"AUTO-{product_id}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+                    # Vérifier si un lot avec ce numéro existe déjà
+                    from app.models.stocks.lots import ProductLot as PL
+                    existing_lot = db.query(PL).filter(PL.lot_number == auto_lot_number).first()
+                    if not existing_lot:
+                        db.add(PL(
+                            lot_number=auto_lot_number,
+                            product_id=product_id,
+                            product_label=prod.label if prod else None,
+                            product_ref=prod.reference if prod else None,
+                            quantity=abs(quantity),
+                            initial_quantity=abs(quantity),
+                            unit_price=0.0,
+                            created_by_user_id=user_id,
+                        ))
+
+                comment_with_sync = f"[{sync_status}] {comment or ''}".strip()
+                # FIX Point 2: Enregistrer dolibarr_mvt_id pour déduplication future
+                # Vérification d'idempotence côté Dolibarr : si l'id existe déjà, ne pas réinsérer
+                dolibarr_id_int = int(mvt_id) if mvt_id is not None else None
+                existing_by_dol_id = None
+                if dolibarr_id_int is not None:
+                    existing_by_dol_id = db.query(StockMovement).filter(
+                        StockMovement.dolibarr_mvt_id == dolibarr_id_int
+                    ).first()
+                if existing_by_dol_id is None:
+                    new_mvt = StockMovement(
+                        product_id=product_id,
+                        movement_type=movement_type.upper(),
+                        quantity=qty,
+                        reference_doc=reference_doc,
+                        comment=comment_with_sync,
+                        dolibarr_mvt_id=dolibarr_id_int,
+                        sync_status=sync_status,
+                        created_by_user_id=user_id,
+                        created_at=datetime.now(timezone.utc)
+                    )
+                    db.add(new_mvt)
+            if commit:
+                db.commit()
+            else:
+                db.flush()
+
         return {
-            "id_movement": int(mvt_id),
+            "id_movement": int(mvt_id) if mvt_id is not None else 0,
             "product_id": product_id,
             "movement_type": movement_type.upper(),
             "quantity": qty,
             "reference_doc": reference_doc,
-            "comment": comment,
+            "comment": comment_with_sync if 'comment_with_sync' in locals() else comment,
+            "sync_status": sync_status if 'sync_status' in locals() else "SYNCED",
             "created_at": datetime.now(timezone.utc).isoformat(),
             "created_by_user_id": user_id
         }
     except Exception as e:
-        logger.warning(f"Erreur enregistrement mouvement Dolibarr: {e}")
-        return {
-            "id_movement": 1,
-            "product_id": product_id,
-            "movement_type": movement_type.upper(),
-            "quantity": qty,
-            "reference_doc": reference_doc,
-            "comment": comment,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "created_by_user_id": user_id
-        }
+        if db is not None and commit:
+            db.rollback()
+        logger.warning(f"Erreur enregistrement mouvement: {e}")
+        raise RuntimeError(f"Le mouvement de stock n'a pas pu être enregistré : {e}") from e

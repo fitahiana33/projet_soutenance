@@ -12,9 +12,12 @@ from app.models.sales.sales import (
     Customer,
     SalesQuote,
     SalesOrder,
+    SalesOrderLine,
     Delivery,
     SalesInvoice,
 )
+from app.models.products.product import Product
+from app.services.products.product_service import record_stock_movement
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +83,7 @@ def _serialize_order(o: SalesOrder) -> Dict[str, Any]:
     except Exception:
         items = []
     items_count = len(items)
-    stock_reserved = o.status in ["CONFIRMEE", "EN_PREPARATION", "LIVREE", "VALIDEE", "FACTUREE"]
+    stock_reserved = o.status in ["CONFIRMEE", "EN_PREPARATION", "EN_LIVRAISON"]
     return {
         "id_order": o.id_order,
         "order_ref": o.reference,
@@ -624,7 +627,8 @@ async def create_sales_order(
         vat_amount=vat_amount,
         total_ttc=tot_ttc,
         discount_percent=round((discount_amount / gross_ht) * 100, 2) if gross_ht else 0.0,
-        status="VALIDEE",
+        # Une commande créée ne consomme ni ne réserve encore le stock.
+        status="BROUILLON",
         order_date=datetime.now(timezone.utc),
         expected_delivery_date=order_data.get("expected_delivery_date"),
         shipping_address=order_data.get("shipping_address"),
@@ -634,10 +638,16 @@ async def create_sales_order(
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
     )
+    obj.lines = [SalesOrderLine(
+        product_id=int(item["product_id"]),
+        product_reference=item.get("reference"),
+        product_label=item.get("label", "Produit"),
+        quantity=float(item.get("quantity", 0)),
+        unit_price=float(item.get("unit_price", 0)),
+        discount_percent=float(item.get("discount_percent", 0)),
+        total_ht=float(item.get("total_line_ht", 0)),
+    ) for item in items_detail]
     db.add(obj)
-
-    cust.total_revenue_generated = (cust.total_revenue_generated or 0.0) + tot_ttc
-    cust.updated_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(obj)
@@ -661,7 +671,102 @@ async def create_sales_order(
     return _serialize_order(obj)
 
 
-def update_sales_order_status(
+def _change_local_reservation(db: Session, items: List[Dict[str, Any]], delta: int) -> None:
+    """Applique une réservation locale en garantissant les invariants de stock."""
+    for item in items:
+        product = db.query(Product).filter(Product.id_product == int(item["product_id"])).with_for_update().first()
+        if not product:
+            continue
+        quantity = int(float(item.get("quantity", 0))) * delta
+        physical = max(0, int(product.stock_quantity or 0))
+        reserved = max(0, int(product.stock_reserved or 0)) + quantity
+        if reserved < 0 or reserved > physical:
+            raise ValueError(
+                f"Réservation impossible pour le produit #{product.id_product} : "
+                f"réservé={reserved}, physique={physical}."
+            )
+        product.stock_reserved = reserved
+        product.updated_at = datetime.now(timezone.utc)
+
+
+async def _execute_delivery_stock_movements(
+    db: Session,
+    order: SalesOrder,
+    items: List[Dict[str, Any]],
+    actor_user: Optional[Any],
+    delivery_ref: str
+) -> None:
+    """Valide d'abord les stocks de tous les produits puis effectue la sortie de stock garantie sous transaction."""
+    if not items:
+        try:
+            if order.items_json:
+                items = json.loads(order.items_json) if isinstance(order.items_json, str) else order.items_json
+        except Exception:
+            items = []
+
+    # 1. Contrôle préalable de disponibilité pour TOUTES les lignes
+    from app.models.products.product import StockMovement
+    existing_movement_keys = {
+        (m.product_id, m.movement_type)
+        for m in db.query(StockMovement).filter(StockMovement.reference_doc == delivery_ref).all()
+    }
+    quantities_by_product: Dict[int, int] = {}
+    for item in items:
+        pid = int(item.get("product_id", 0))
+        qty = int(float(item.get("quantity", 0)))
+        if pid > 0 and qty > 0:
+            quantities_by_product[pid] = quantities_by_product.get(pid, 0) + qty
+    expected_keys = {
+        (pid, "SORTIE") for pid in quantities_by_product
+    }
+    if expected_keys and expected_keys.issubset(existing_movement_keys):
+        return
+
+    created_movement_ids = []
+    locked_products = {}
+    for pid, qty in quantities_by_product.items():
+        prod = db.query(Product).filter(Product.id_product == pid).with_for_update().first()
+        if not prod:
+            raise RuntimeError(f"Livraison impossible : produit local #{pid} introuvable.")
+        locked_products[pid] = prod
+        physical = max(0, int(prod.stock_quantity or 0))
+        reserved = max(0, int(prod.stock_reserved or 0))
+        # La réservation de cette commande sera libérée après la sortie.
+        if reserved < qty or physical < qty or physical < reserved:
+            raise RuntimeError(
+                f"Livraison impossible pour la commande {order.reference} : "
+                f"stock/réservation incohérents pour '{prod.label or f'Produit #{pid}'}' "
+                f"(physique={physical}, réservé={reserved}, livraison={qty})."
+            )
+
+    # 2. Exécution synchrone et contrôlée des mouvements de stock
+    try:
+        for pid, qty in quantities_by_product.items():
+            if pid > 0 and qty > 0:
+                result = await record_stock_movement(
+                product_id=pid,
+                movement_type="SORTIE",
+                quantity=qty,
+                reference_doc=delivery_ref,
+                comment=f"Livraison commande {order.reference}",
+                user_id=getattr(actor_user, "id_user", None) if actor_user else None,
+                    db=db,
+                    commit=False,
+                    preserve_reservations=True,
+                )
+                if not result.get("idempotent"):
+                    created_movement_ids.append(result["id_movement"])
+    except Exception:
+        db.rollback()
+        for movement_id in created_movement_ids:
+            try:
+                await dolibarr_client.delete(f"stockmovements/{movement_id}")
+            except Exception as compensation_error:
+                logger.error("Compensation impossible pour le mouvement %s: %s", movement_id, compensation_error)
+        raise
+
+
+async def update_sales_order_status(
     db: Session,
     order_id: int,
     new_status: str,
@@ -677,13 +782,18 @@ def update_sales_order_status(
     valid_statuses = ["BROUILLON", "CONFIRMEE", "EN_PREPARATION", "LIVREE", "ANNULEE", "VALIDEE", "EN_LIVRAISON", "FACTUREE"]
     if new_status not in valid_statuses:
         logger.warning(f"Statut commande hors liste standard: {new_status}")
-    obj.status = new_status
+    if new_status == "LIVREE" and obj.status != "LIVREE":
+        raise ValueError("Une commande doit être livrée via la création d'une livraison.")
+    old_reserved = obj.status in ["CONFIRMEE", "EN_PREPARATION", "EN_LIVRAISON"]
+    new_reserved = new_status in ["CONFIRMEE", "EN_PREPARATION", "EN_LIVRAISON"]
+    items = json.loads(obj.items_json or "[]")
 
-    if new_status == "ANNULEE":
-        pass
-    elif new_status in ["VALIDEE", "LIVREE", "CONFIRMEE", "FACTUREE"]:
-        if new_status == "LIVREE":
-            obj.actual_delivery_date = datetime.now(timezone.utc)
+    if not old_reserved and new_reserved:
+        _change_local_reservation(db, items, +1)
+    elif old_reserved and not new_reserved:
+        _change_local_reservation(db, items, -1)
+
+    obj.status = new_status
 
     obj.updated_at = datetime.now(timezone.utc)
     db.commit()
@@ -721,15 +831,32 @@ def get_deliveries_by_order(db: Session, order_id: int) -> List[Dict[str, Any]]:
     return [_serialize_delivery(d) for d in deliveries]
 
 
-def create_delivery(
+async def create_delivery(
     db: Session,
     delivery_data: Dict[str, Any],
     actor_user: Optional[Any] = None,
 ) -> Dict[str, Any]:
-    """Crée une nouvelle livraison pour une commande."""
+    """Crée une nouvelle livraison pour une commande avec garantie de sortie de stock si livrée."""
     order = db.query(SalesOrder).filter(SalesOrder.id_order == delivery_data["order_id"]).first()
     if not order:
         raise RuntimeError(f"Commande #{delivery_data['order_id']} non trouvée.")
+
+    requested_reference = delivery_data.get("reference")
+    if requested_reference:
+        existing_delivery = db.query(Delivery).filter(Delivery.reference == requested_reference).first()
+        if existing_delivery:
+            if existing_delivery.order_id != order.id_order:
+                raise ValueError("La référence de livraison est déjà utilisée pour une autre commande.")
+            return _serialize_delivery(existing_delivery)
+
+    if order.status == "LIVREE":
+        existing_delivery = db.query(Delivery).filter(
+            Delivery.order_id == order.id_order,
+            Delivery.status == "LIVREE",
+        ).first()
+        if existing_delivery:
+            return _serialize_delivery(existing_delivery)
+        raise ValueError("Cette commande est déjà livrée.")
 
     items = []
     try:
@@ -743,7 +870,14 @@ def create_delivery(
 
     last_id = db.query(func.max(Delivery.id_delivery)).scalar() or 0
     new_id = last_id + 1
-    reference = f"LIV-2026-{new_id:04d}"
+    reference = requested_reference or f"LIV-2026-{new_id:04d}"
+
+    is_delivered = delivery_data.get("status", "PREPAREE") == "LIVREE"
+    if is_delivered and order.status not in ["CONFIRMEE", "EN_PREPARATION", "EN_LIVRAISON"]:
+        raise ValueError("La commande doit être confirmée avant sa livraison.")
+
+    if is_delivered:
+        await _execute_delivery_stock_movements(db, order, items, actor_user, reference)
 
     obj = Delivery(
         reference=reference,
@@ -764,12 +898,11 @@ def create_delivery(
     )
     db.add(obj)
 
-    if delivery_data.get("status") == "LIVREE" or order.status not in ["LIVREE", "FACTUREE"]:
-        if order.status in ["CONFIRMEE", "VALIDEE", "EN_PREPARATION", "EN_LIVRAISON"]:
-            if delivery_data.get("status") == "LIVREE":
-                order.status = "LIVREE"
-                order.actual_delivery_date = datetime.now(timezone.utc)
-                order.updated_at = datetime.now(timezone.utc)
+    if is_delivered:
+        order.status = "LIVREE"
+        order.actual_delivery_date = datetime.now(timezone.utc)
+        order.updated_at = datetime.now(timezone.utc)
+        _change_local_reservation(db, items, -1)
 
     db.commit()
     db.refresh(obj)
@@ -784,13 +917,82 @@ def create_delivery(
                 username=getattr(actor_user, "username", "SYSTEM"),
                 user_role=getattr(actor_user, "role", None),
                 target_entity=f"Livraison {reference}",
-                details=f"Livraison commande {order.reference}",
                 new_values=_serialize_delivery(obj),
             )
         except Exception as ae:
             logger.warning(f"Audit log create_delivery: {ae}")
 
     return _serialize_delivery(obj)
+
+
+def get_delivery_by_id(db: Session, delivery_id: int) -> Optional[Dict[str, Any]]:
+    """Récupère une livraison par son ID."""
+    deliv = db.query(Delivery).filter(Delivery.id_delivery == delivery_id).first()
+    return _serialize_delivery(deliv) if deliv else None
+
+
+async def update_delivery_status(
+    db: Session,
+    delivery_id: int,
+    new_status: str,
+    actor_user: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Mise à jour du statut d'une livraison (ex: PREPAREE -> LIVREE). Déclenche la sortie de stock si nouveau statut = LIVREE."""
+    deliv = db.query(Delivery).filter(Delivery.id_delivery == delivery_id).first()
+    if not deliv:
+        raise RuntimeError(f"Livraison #{delivery_id} non trouvée.")
+
+    if deliv.status == new_status:
+        return _serialize_delivery(deliv)
+
+    order = db.query(SalesOrder).filter(SalesOrder.id_order == deliv.order_id).first()
+    if not order:
+        raise RuntimeError(f"Commande #{deliv.order_id} associée non trouvée.")
+
+    items = []
+    try:
+        if deliv.items_json:
+            items = json.loads(deliv.items_json) if isinstance(deliv.items_json, str) else deliv.items_json
+        elif order.items_json:
+            items = json.loads(order.items_json) if isinstance(order.items_json, str) else order.items_json
+    except Exception:
+        items = []
+
+    old = _serialize_delivery(deliv)
+
+    if new_status == "LIVREE" and deliv.status != "LIVREE":
+        await _execute_delivery_stock_movements(db, order, items, actor_user, deliv.reference)
+        deliv.status = "LIVREE"
+        deliv.delivery_date = datetime.now(timezone.utc)
+        order.status = "LIVREE"
+        order.actual_delivery_date = datetime.now(timezone.utc)
+        order.updated_at = datetime.now(timezone.utc)
+        _change_local_reservation(db, items, -1)
+    else:
+        deliv.status = new_status
+
+    deliv.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(deliv)
+
+    if actor_user is not None:
+        try:
+            log_action(
+                db,
+                action="UPDATE",
+                module="VENTES",
+                user_id=getattr(actor_user, "id_user", None),
+                username=getattr(actor_user, "username", "SYSTEM"),
+                user_role=getattr(actor_user, "role", None),
+                target_entity=f"Livraison {deliv.reference}",
+                details=f"Statut livraison -> {new_status}",
+                old_values=old,
+                new_values=_serialize_delivery(deliv),
+            )
+        except Exception as ae:
+            logger.warning(f"Audit log update_delivery_status: {ae}")
+
+    return _serialize_delivery(deliv)
 
 
 def get_sales_invoices(db: Session, actor_user: Optional[Any] = None) -> List[Dict[str, Any]]:
@@ -900,6 +1102,7 @@ def update_invoice_payment(
         raise ValueError("Le montant payé ne peut pas dépasser le total TTC de la facture.")
 
     old = _serialize_invoice(obj)
+    previous_amount_paid = float(obj.amount_paid or 0.0)
     obj.amount_paid = amount_paid
     if payment_method:
         obj.payment_method = payment_method
@@ -914,6 +1117,15 @@ def update_invoice_payment(
         obj.status = "EMISE"
 
     obj.updated_at = datetime.now(timezone.utc)
+    if obj.sales_order and obj.sales_order.customer:
+        customer = obj.sales_order.customer
+        customer.total_revenue_generated = max(
+            0.0,
+            float(customer.total_revenue_generated or 0.0)
+            + float(amount_paid)
+            - previous_amount_paid,
+        )
+        customer.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(obj)
 

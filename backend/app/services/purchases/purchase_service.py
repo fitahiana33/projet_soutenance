@@ -7,6 +7,7 @@ from app.models.purchases.purchase import (
     Supplier,
     PurchaseRequisition,
     PurchaseOrder,
+    PurchaseOrderLine,
     GoodsReceipt,
     SupplierInvoice
 )
@@ -499,6 +500,14 @@ async def create_purchase_order(
         notes=order_data.get("notes"),
         created_by_user_id=actor_user_id
     )
+    new_order.lines = [PurchaseOrderLine(
+        product_id=order_data["product_id"],
+        product_reference=p.get("reference"),
+        product_label=p.get("label", f"Produit #{order_data['product_id']}"),
+        quantity=qty,
+        unit_price=unit_price,
+        total_ht=round(qty * unit_price, 2),
+    )]
     db.add(new_order)
 
     if order_data.get("requisition_id"):
@@ -589,22 +598,23 @@ async def record_goods_receipt(
     if total_received == order.quantity:
         order.actual_delivery_date = now_utc
 
-    db.commit()
-    db.refresh(new_receipt)
-    db.refresh(order)
-
-    receipt_result = _receipt_to_dict(new_receipt)
-
     try:
         await record_stock_movement(
             product_id=order.product_id,
             movement_type="ENTREE",
             quantity=quantity_received,
-            reference_doc=order.reference,
+            reference_doc=ref,
+            user_id=actor_user_id,
+            db=db,
             comment=f"Réception Commande Achat ({ref})"
         )
     except Exception as e:
-        logger.warning(f"Mouvement de stock lors de la réception: {e}")
+        db.rollback()
+        raise RuntimeError(f"Reception annulee : mouvement Dolibarr non confirme ({e})") from e
+
+    db.refresh(new_receipt)
+    db.refresh(order)
+    receipt_result = _receipt_to_dict(new_receipt)
 
     log_action(
         db,
@@ -727,37 +737,48 @@ async def get_supplier_performance_analysis(
 
     results = []
 
-    base_metrics = {
-        1: {"avg_price": 200.0, "avg_days": 2.5, "delay_rate": 4.0, "conformity": 98.0, "freq": 14.0, "trend": "STABLE"},
-        2: {"avg_price": 185.0, "avg_days": 4.0, "delay_rate": 12.0, "conformity": 92.0, "freq": 8.0, "trend": "BAISSE"},
-        3: {"avg_price": 220.0, "avg_days": 1.8, "delay_rate": 2.0, "conformity": 99.5, "freq": 18.0, "trend": "HAUSSE"}
-    }
-
     for sup in suppliers:
         s_id = sup["id_supplier"]
-        m = base_metrics.get(s_id, {
-            "avg_price": 210.0, "avg_days": 3.0, "delay_rate": 8.0, "conformity": 95.0, "freq": 6.0, "trend": "STABLE"
-        })
-
         sup_orders = [o for o in orders_dicts if o["supplier_id"] == s_id]
-        total_orders = len(sup_orders) or int(m["freq"])
+        prices = [float(o["unit_price"]) for o in sup_orders if o.get("unit_price") is not None]
+        avg_price = round(sum(prices) / len(prices), 2) if prices else 0.0
+        order_ids = {o["id_order"] for o in sup_orders}
+        sup_receipts = [r for r in receipts_dicts if r["order_id"] in order_ids]
+        conform_count = sum(1 for r in sup_receipts if r.get("quality_control_status") == "CONFORME")
+        conformity = round((conform_count / len(sup_receipts)) * 100.0, 1) if sup_receipts else 0.0
+        delivery_days = []
+        delayed = 0
+        for order in sup_orders:
+            if not order.get("expected_delivery_date"):
+                continue
+            expected = datetime.fromisoformat(order["expected_delivery_date"]).date()
+            received_dates = [
+                datetime.fromisoformat(r["received_at"]).date()
+                for r in sup_receipts if r["order_id"] == order["id_order"] and r.get("received_at")
+            ]
+            actual = received_dates[-1] if received_dates else None
+            if actual:
+                days = max(0, (actual - datetime.fromisoformat(order["order_date"]).date()).days)
+                delivery_days.append(days)
+                delayed += actual > expected
+        avg_days = round(sum(delivery_days) / len(delivery_days), 1) if delivery_days else 0.0
+        delay_rate = round((delayed / len(delivery_days)) * 100.0, 1) if delivery_days else 0.0
+        frequency = round(len(sup_orders) / max(1.0, (datetime.now(timezone.utc) - min(
+            (datetime.fromisoformat(o["order_date"]) for o in sup_orders),
+            default=datetime.now(timezone.utc)
+        )).days / 365.0), 1) if sup_orders else 0.0
+        ordered_prices = [float(o["unit_price"]) for o in sorted(sup_orders, key=lambda o: o["order_date"]) if o.get("unit_price") is not None]
+        trend = "STABLE"
+        if len(ordered_prices) >= 2:
+            change = ordered_prices[-1] - ordered_prices[0]
+            trend = "HAUSSE" if change > 0.01 else "BAISSE" if change < -0.01 else "STABLE"
 
-        if sup_orders:
-            prices = [o["unit_price"] for o in sup_orders if o.get("unit_price")]
-            if prices:
-                m["avg_price"] = round(sum(prices) / len(prices), 2)
-
-            sup_order_ids = {o["id_order"] for o in sup_orders}
-            sup_receipts = [r for r in receipts_dicts if r["order_id"] in sup_order_ids]
-
-            if sup_receipts:
-                conform_count = sum(1 for r in sup_receipts if r.get("quality_control_status") == "CONFORME")
-                m["conformity"] = round((conform_count / len(sup_receipts)) * 100.0, 1)
-
-        score_price = max(50.0, min(100.0, 100.0 - (m["avg_price"] - 180.0) * 0.5))
-        score_delay = max(40.0, min(100.0, 100.0 - (m["avg_days"] * 8.0)))
-        score_quality = m["conformity"]
-        score_reliability = max(0.0, 100.0 - m["delay_rate"])
+        all_prices = [float(o["unit_price"]) for o in orders_dicts if o.get("unit_price") is not None]
+        benchmark = (sum(all_prices) / len(all_prices)) if all_prices else 0.0
+        score_price = round(max(0.0, min(100.0, (benchmark / avg_price) * 100.0)), 1) if avg_price and benchmark else 0.0
+        score_delay = round(max(0.0, 100.0 - delay_rate), 1)
+        score_quality = conformity
+        score_reliability = round(max(0.0, 100.0 - delay_rate), 1)
 
         overall_score = round(
             (score_price * w_price) +
@@ -767,7 +788,9 @@ async def get_supplier_performance_analysis(
             1
         )
 
-        if overall_score >= 88.0:
+        if not sup_orders:
+            badge = "DONNEES_INSUFFISANTES"
+        elif overall_score >= 88.0:
             badge = "RECOMMANDÉ"
         elif overall_score >= 75.0:
             badge = "ACCEPTABLE"
@@ -777,14 +800,14 @@ async def get_supplier_performance_analysis(
         results.append({
             "supplier_id": s_id,
             "supplier_name": sup["name"],
-            "total_orders": total_orders,
-            "avg_price": m["avg_price"],
-            "avg_delivery_days": m["avg_days"],
-            "delay_rate_percent": m["delay_rate"],
-            "conformity_rate_percent": m["conformity"],
+            "total_orders": len(sup_orders),
+            "avg_price": avg_price,
+            "avg_delivery_days": avg_days,
+            "delay_rate_percent": delay_rate,
+            "conformity_rate_percent": conformity,
             "quality_score": round(score_quality, 1),
-            "order_frequency_per_year": m["freq"],
-            "price_trend": m["trend"],
+            "order_frequency_per_year": frequency,
+            "price_trend": trend,
             "score_price": round(score_price, 1),
             "score_delay": round(score_delay, 1),
             "score_quality": round(score_quality, 1),

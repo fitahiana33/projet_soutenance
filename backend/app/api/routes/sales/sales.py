@@ -4,11 +4,11 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.users.user import User
-from app.api.deps import require_permission
+from app.api.deps import require_permission, require_all_permissions
 from app.schemas.sales.sales import (
     CustomerCreate, CustomerResponse,
     SaleQuoteCreate, SaleOrderCreate, SaleOrderResponse,
-    SaleInvoiceCreate, SaleInvoiceResponse, SalePaymentUpdate
+    SaleInvoiceCreate, SaleInvoiceResponse, SalePaymentUpdate, SaleDeliveryCreate
 )
 from app.services.sales import sales_service
 from app.services.audit.audit_service import log_action
@@ -115,10 +115,61 @@ async def change_order_status(
     current_user: User = Depends(require_permission("SALES_VALIDATE", "SALES_UPDATE"))
 ):
     try:
-        res = sales_service.update_sales_order_status(db, order_id, status_val, actor_user=current_user)
+        res = await sales_service.update_sales_order_status(db, order_id, status_val, actor_user=current_user)
         return res
     except RuntimeError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.get("/deliveries", summary="Liste des livraisons clients")
+async def read_deliveries(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("SALES_READ"))
+):
+    return sales_service.get_deliveries(db, actor_user=current_user)
+
+
+@router.get("/deliveries/{delivery_id}", summary="Détail d'une livraison client")
+async def read_delivery(
+    delivery_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("SALES_READ"))
+):
+    delivery = sales_service.get_delivery_by_id(db, delivery_id)
+    if not delivery:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Livraison introuvable.")
+    return delivery
+
+
+@router.post("/deliveries", response_model=dict, status_code=status.HTTP_201_CREATED, summary="Créer une livraison")
+async def add_delivery(
+    data: SaleDeliveryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_all_permissions("SALES_UPDATE", "STOCK_UPDATE"))
+):
+    try:
+        return await sales_service.create_delivery(db, data.model_dump(), actor_user=current_user)
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.put("/deliveries/{delivery_id}/status", summary="Mettre à jour le statut d'une livraison (Valider / Livrer)")
+async def change_delivery_status(
+    delivery_id: int,
+    status_val: str = Query(..., alias="status", description="Nouveau statut de livraison (PREPAREE, LIVREE)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_all_permissions("SALES_UPDATE", "STOCK_UPDATE"))
+):
+    try:
+        return await sales_service.update_delivery_status(db, delivery_id, status_val, actor_user=current_user)
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.get("/invoices", response_model=List[SaleInvoiceResponse], summary="Factures et règlements clients")
